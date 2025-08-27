@@ -1,0 +1,75 @@
+# ============================================================
+# resources/semantics.yaml — listes data-driven pour "sans"
+# ============================================================
+
+SANS_MODALITY_HEADS:
+  - préparation
+  - injection
+  - contraste
+  - produit de contraste
+
+SANS_PARTICULARITE_HEADS:
+  - particularité
+  - particularités
+
+SANS_RESULT_HEADS:
+  - succès
+  - efficacité
+  - complication
+  - tolérance
+  - événement indésirable
+
+SANS_META_HEADS_DE:
+  - signe
+  - signes
+  - notion
+  - notions
+  - trace
+  - traces
+  - preuve
+  - preuves
+  - évidence
+  - évidences
+  - indice
+  - indices
+
+OCCURRENCE_VERBS:
+  - présenter
+  - développer
+  - faire
+  - survenir
+  - déclencher
+
+RIGHT_SUPPORT_PREPS_AGENCY:
+  - par
+  - "de la part de"
+  - "sous l’autorité de"
+  - "sous la supervision de"
+
+RIGHT_SUPPORT_PREPS_NORMATIVE:
+  - "conformément à"
+  - "en vertu de"
+  - "au titre de"
+
+RIGHT_SUPPORT_PREPS_REFERENCE:
+  - selon
+  - "d’après"
+  - "en accord avec"
+  - "au regard de"
+
+SANS_LEXICALIZED_PATTERNS:
+  - "syndrome des jambes sans repos"
+
+META_HEADS_DE:
+  - signe
+  - signes
+  - notion
+  - notions
+  - trace
+  - traces
+  - preuve
+  - preuves
+  - évidence
+  - évidences
+  - indice
+  - indices

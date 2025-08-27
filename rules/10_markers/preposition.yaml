@@ -1,0 +1,197 @@
+# === MARQUEURS PRÉPOSITIONNELS NÉGATIFS ===
+# Objectif : détecter toutes les prépositions et locutions prépositionnelles qui expriment
+# la privation, l’exclusion ou l’exception.
+# ⚠️ Ces règles n'attachent PAS de scope. Les portées sont gérées dans 20_scopes/preposition.yaml & co.
+
+# === MARQUEURS PRÉPOSITIONNELS NÉGATIFS (généralisés) ===
+# Inspiré de lexical.yaml → une règle générique + sous-règles spécifiques (flags, exceptions, QC).
+
+# ——————————————————————————————————————————————————————————————
+# A) Prépositions négatives usuelles (génériques)
+# ——————————————————————————————————————————————————————————————
+- id: PREP_NEG_GENERIQUE
+  when_pattern: >
+    (?P<prep>
+      sans
+      |hors
+      |en\s+dehors
+      |défaut
+      |faute
+      |absence
+      |manque
+      |sauf
+      |peine
+      |charge
+    )(?=\s+(de|d[’']))
+  cue_label: ["{prep}"]
+  group: "preposition"
+  notes: >
+    Prépositions et locutions prépositionnelles négatives ou restrictives.
+    Cue = mot central uniquement (sans "à", "de", "d’").
+    Catégories couvertes :
+      - Privation : sans, défaut, faute, absence, manque
+      - Exclusion : hors, en dehors
+      - Juridique : peine, charge
+    ✅ Chaque occurrence trouvée est annotée séparément (global = true).
+    ✅ Le cue correspond exactement au noyau lexical, pas aux particules.
+  options:
+    regex: true
+    case_insensitive: true
+    global: true
+    exclude_verbs_from_cue: true
+  examples:
+    - "Sans douleur. → sans"
+    - "Hors de cause. → hors"
+    - "En dehors de tout contexte infectieux. → en dehors"
+    - "À défaut de preuves. → défaut"
+    - "Faute de temps, la procédure a été interrompue. → faute"
+    - "En l’absence de fièvre. → absence"
+    - "Sous peine de nullité. → peine"
+    - "Sauf à fournir une justification. → sauf"
+    - "À charge de la défense. → charge"
+    # Cas multi-marqueurs
+    - "En l’absence de données et sans traitement. → absence, sans"
+    - "Faute de preuves, en dehors de tout contexte. → faute, en dehors"
+# ——————————————————————————————————————————————————————————————
+# B) Prépositions avec infinitif
+# ——————————————————————————————————————————————————————————————
+- id: PREP_NEG_INF
+  when_pattern: >
+    (?P<prep>sans)\s+[a-zàâçéèêëîïôûùüÿ]+\b(er|ir|re|oir)\b
+  cue_label: ["{prep}"]
+  group: "preposition"
+  notes: >
+    Cas particulier : 'sans' suivi d’un verbe à l’infinitif.
+    → Ajout d’un flag car le scope sera verbal (VP), pas GN.
+    ✅ Toutes les occurrences sont captées séparément (global = true).
+    ✅ Si plusieurs négations apparaissent, on génère autant de marqueurs.
+  options:
+    regex: true
+    global: true
+    case_insensitive: true
+    add_feature_flag: "is_infinitif=1"
+    exclude_verbs_from_cue: true
+  examples:
+    - "Le patient sort sans manger. → sans"
+    - "Patient sans pouvoir déglutir. → sans"
+    - "Il a quitté la salle sans prévenir ni expliquer. → sans, ni"
+    - "Sans respirer, il ne peut poursuivre l’effort. → sans, ne"
+    - "Sans boire ni manger, le jeûne a été complet. → sans, ni"
+    - "Il est resté sans parler et sans bouger. → sans, sans"
+    - "Il ne peut poursuivre sans boire ni manger. → ne, sans, ni"
+    - "Jamais sans comprendre ni réfléchir. → jamais, sans, ni"
+
+# ——————————————————————————————————————————————————————————————
+# C) Prépositions figées / particularité
+# ——————————————————————————————————————————————————————————————
+- id: PREP_NEG_PARTICULARITE
+  when_pattern: '\b(?P<prep>sans)\s+(particularité(s)?|anomalie(s)?|incident(s)?|complication(s)?)\b'
+  cue_label: ["{prep}"]
+  group: "preposition"
+  notes: >
+    Formules figées en contexte clinique : « sans particularité », « sans anomalie », « sans incident », « sans complication ».
+    ✅ Chaque occurrence de "sans" est captée séparément.
+    ✅ Si plusieurs apparaissent dans la phrase, elles produisent plusieurs marqueurs (x marqueurs → x labels).
+  options:
+    regex: true
+    case_insensitive: true
+    global: true
+    add_feature_flag: "is_particularite=1"
+    exclude_verbs_from_cue: true
+  examples:
+    - "Examen clinique sans particularité. → sans"
+    - "ENMG sans particularités. → sans"
+    - "Scanner thoracique sans anomalie. → sans"
+    - "Procédure sans complication. → sans"
+    - "Examen sans anomalie, sans incident, sans particularité. → sans, sans, sans"
+
+
+# ——————————————————————————————————————————————————————————————
+# D) Prépositions techniques (modalités d’imagerie)
+# ——————————————————————————————————————————————————————————————
+- id: PREP_NEG_MODALITE
+  when_pattern: '\b(?P<prep>sans)\s+(préparation|preparation|injection|contraste|produit(?: de contraste)?)\b'
+  cue_label: ["{prep}"]
+  group: "preposition"
+  notes: >
+    Modalité technique fréquemment niée en contexte médical (scanner, IRM…).
+    Exemples typiques : « sans injection », « sans produit de contraste », « sans préparation ».
+    ✅ Chaque occurrence de "sans" est captée séparément.
+    ✅ Si plusieurs apparaissent dans la phrase, elles produisent plusieurs marqueurs.
+  options:
+    regex: true
+    case_insensitive: true
+    global: true
+    add_feature_flag: "is_modalite=1"
+    exclude_verbs_from_cue: true
+  examples:
+    - "Scanner sans injection. → sans"
+    - "IRM sans produit de contraste. → sans"
+    - "Radiographie de l’abdomen sans préparation. → sans"
+    # Cas multi-marqueurs
+    - "Scanner sans préparation ni injection. → sans, ni"
+    - "IRM sans produit de contraste et sans préparation. → sans, sans"
+    - "Examens successifs : scanner sans injection, IRM sans produit de contraste. → sans, sans"
+
+
+# ——————————————————————————————————————————————————————————————
+# E) Prépositions juridiques
+# ——————————————————————————————————————————————————————————————
+- id: PREP_NEG_JURIDIQUE
+  when_pattern: "(?P<prep>sous peine de|à charge de|a charge de|sauf à)"
+  cue_label: ["{prep}"]
+  group: "preposition"
+  notes: >
+    Expressions juridiques qui impliquent une négation conditionnelle
+    (nullité, absence de validité, exception).
+    ✅ Chaque occurrence est captée séparément (global = true).
+    ✅ Si plusieurs apparaissent dans la phrase, elles produisent plusieurs marqueurs.
+  options:
+    regex: true
+    global: true
+    case_insensitive: true
+    add_feature_flag: "is_juridique=1"
+    exclude_verbs_from_cue: true
+  examples:
+    - "Sous peine de nullité. → sous peine de"
+    - "À charge de preuve. → à charge de"
+    - "Sauf à démontrer le contraire. → sauf à"
+    # Cas multi-marqueurs
+    - "Sous peine de nullité et à charge de la défense. → sous peine de, à charge de"
+    - "Sauf à prouver, sous peine de sanction. → sauf à, sous peine de"
+
+
+# ——————————————————————————————————————————————————————————————
+# F) Exceptions lexicalisées (SKIP)
+# ——————————————————————————————————————————————————————————————
+- id: PREP_NEG_SKIP
+  when_pattern: "(syndrome des jambes sans repos|hors d[’']œuvre|hors d[’']oeuvre)"
+  action: "SKIP"
+  notes: >
+    Expressions figées où la préposition n’a pas de valeur négative.
+    - « Syndrome des jambes sans repos » (médical)
+    - « hors d’œuvre » (culinaire)
+    ✅ Elles doivent être ignorées (aucun cue émis).
+  options:
+    regex: true
+    case_insensitive: true
+    global: true
+    exclude_verbs_from_cue: true
+  examples:
+    - "Syndrome des jambes sans repos."
+    - "Un hors d’œuvre délicieux."
+    - "Hors d'oeuvre servi en entrée."
+# ——————————————————————————————————————————————————————————————
+# G) Exceptions lexicalisées (SKIP)
+# ——————————————————————————————————————————————————————————————
+- id: PREP_SKIP_NON_EXCEPTIONS
+  when_pattern: '\bnon\b'
+  negative_guards:
+    - '\bnon\s+seulement\b'
+    - '\bnon\s+pas\b'
+    - '\bnonobstant\b'
+  cue_label: "non"
+  options:
+    regex: true
+    case_insensitive: true
+    global: true

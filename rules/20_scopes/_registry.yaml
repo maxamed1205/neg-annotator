@@ -1,0 +1,40 @@
+# ============================================================
+# 20_scopes/_registry.yaml — v3 (consolidated, group-driven)
+# Une seule map 'routes_by_group'. Priorité la plus haute gagne.
+# ============================================================
+routes_by_group:
+
+  conjonction:
+    file: coordination.yaml
+    strategies: [CONJ_NI_CORE, CONJ_NI_SUPPORT_AUTO, CONJ_NI_FALLBACK]
+    priority: 70
+
+  bipartite:
+    file: bipartites.yaml
+    strategies: [BIP_G_SKIP_NE_QUE, BIP_G_CORE, BIP_G_COOC_DET_RESOLVE, BIP_G_SUPPORT_AUTO]
+    priority: 60
+
+  preposition:
+    file: preposition.yaml
+    strategies: [PREP_G_SKIP_LEXICALIZED, PREP_SANS_CORE, PREP_SANS_SUPPORT_AUTO, PREP_G_FALLBACK]
+    priority: 50
+
+  locution:
+    file: locutions.yaml
+    strategies: [LOC_G_SKIP_NON_ASSERTIVE, LOC_G_CORE, LOC_G_SUPPORT_AUTO, LOC_G_FALLBACK]
+    priority: 44
+
+  lexical:
+    file: lexical.yaml
+    strategies: [LEX_G_SKIP_LEXICALIZED, LEX_G_CORE, LEX_G_NEGATE_DIAG, LEX_G_SUPPORT_AUTO]
+    priority: 43
+
+  determinant:
+    file: determinant.yaml
+    strategies: [DET_G_CORE, DET_G_SUPPORT_AUTO]
+    priority: 42
+
+  adversative:
+    file: 20_scopes/adversatives.yaml
+    strategies: [ADV_MAIS_RESTRICTIF]
+    priority: 42

@@ -1,0 +1,158 @@
+# ============================================================
+# 20_scopes/qc_scopes.yaml — Quality Checks génériques
+# ============================================================
+
+# 1) Le scope ne doit jamais contenir le cue
+- id: QC_SCOPE_EXCLUDES_CUE
+  when_pattern: ".*"
+  action: "VALIDATE_SCOPE_EXCLUDES_CUE"
+  options: { regex: true, global: true }
+
+# 2) Les spans de rôle 'support' ne participent pas à la polarité
+- id: QC_SUPPORT_ROLE_ONLY
+  when_pattern: ".*"
+  action: "VALIDATE_NON_POLAR_ROLE"
+  options:
+    regex: true
+    global: true
+    role_field: "role"
+    non_polar_roles: ["support"]
+
+# 3) Dédupliquer/fusionner les scopes qui se chevauchent
+- id: QC_DEDUPE_OVERLAPS
+  when_pattern: ".*"
+  action: "MERGE_OVERLAPPING_SCOPES"
+  options:
+    within_group_only: false
+    prefer_higher_priority: true
+
+# 4) Respect de la limite de supports par phrase (aligne avec max_support des règles)
+- id: QC_MAX_SUPPORT_ENFORCED
+  when_pattern: ".*"
+  action: "VALIDATE_MAX_SPANS"
+  options:
+    role: "support"
+    max_per_sentence: 3
+
+# 5) Coordination après UNE locution → UN seul scope (sécurité)
+#    (Si un moteur a tout de même produit plusieurs scopes, on les regroupe.)
+- id: QC_LOCUTION_SINGLE_SCOPE_AFTER_ONE_CUE
+  when_group: "locution"
+  action: "ENFORCE_SINGLE_SCOPE_FOR_SINGLE_CUE"
+  options:
+    merge_on_coord_surface: ["et","ou",","]
+    allow_dep_label: "conj"
+
+# 6) Précedence inter-groupes : si un groupe prioritaire est présent (ex. preposition/sans),
+#    invalider/masquer les scopes des groupes plus faibles sur la même zone.
+- id: QC_GROUP_PRECEDENCE_ENFORCER
+  when_pattern: ".*"
+  action: "ENFORCE_GROUP_PRECEDENCE"
+  options:
+    precedence:
+      - group: "conjonction"   # plus fort
+      - group: "bipartite"
+      - group: "preposition"
+      - group: "locution"
+      - group: "lexical"
+      - group: "determinant"   # moins fort
+    window_tokens: 8
+
+# ======================================================================
+# QC EXCLUSIONS TRANSVERSES — remplace 20_scopes/exclusions.yaml
+# ======================================================================
+# 1) Appositions de source/opinion en fin de scope → à exclure du scope
+- id: QC_TRIM_TRAILING_SOURCE_APPOS
+  when_pattern: ".*"
+  action: "TRIM_TRAILING_APPOSITIONS"
+  options:
+    # Surface (sécurité) + ressources (data-driven)
+    surface_triggers: [", de l’avis de", ", selon", ", d’après", ", d'apres", ", au regard de", ", en accord avec", ", conformément à"]
+    triggers_external: ["RIGHT_SUPPORT_PREPS_REFERENCE", "RIGHT_SUPPORT_PREPS_NORMATIVE"]
+    keep_if_named_entity_close: true
+    max_tail_tokens: 8
+  notes: >
+    Si une apposition de source/opinion suit immédiatement la cible (ex.: ", selon …"),
+    on la retire du scope. Si elle doit servir de contexte, PREP/LOCUTION_SUPPORT_AUTO
+    l’attachera en 'support'.
+  examples:
+    - "Ce traitement n’est pas dans l’intérêt du sujet, de l’avis de l’investigateur. → traitement, dans l’intérêt du sujet"
+# 2) Retirer les verbes de support/constat du scope (filet de sécurité)
+- id: QC_REMOVE_SUPPORT_VERBS_FROM_SCOPE
+  when_pattern: ".*"
+  action: "REMOVE_TOKENS_BY_LEMMA_IF_ROLE_SCOPE"
+  options:
+    lemmas_external: ["SUPPORT_VERBS", "BIP_VERBS_CONSTATER"]  # défini dans resources/semantics.yaml
+    protect_if_flag: ["keep_verb_in_scope=1"]                  # possibilité de whitelister ponctuellement
+  notes: >
+    Les verbes de support/constat (être/avoir/présenter/montrer/révéler/constater/observer…)
+    ne doivent pas rester dans la portée. Les règles CORE les excluent déjà ; ce QC rattrape
+    les cas limites.
+  examples:
+    - "Aucune récidive n’a été constatée. → récidive"
+    - "L’IRM ne montre pas d’adénopathie médiastinale. → IRM, adénopathie médiastinale"
+# 3) Participes passés "vides" à retirer, sauf cadres dédiés (lexical NON_MOD)
+- id: QC_REMOVE_LIGHT_PARTICIPLES_UNLESS_LEXICAL
+  when_pattern: ".*"
+  action: "FILTER_PARTICIPLES"
+  options:
+    ban_lemmas_external: "LIGHT_PARTICIPLES"   # ex.: trouvé, effectué, réalisé, noté, montré...
+    allow_if_group: "lexical"
+    allow_if_flags: ["lex_frame=NON_MOD"]      # on conserve dans "non + participe" lexical
+  notes: >
+    Évite d’avoir des scopes du type ["constaté"] ou ["réalisé"]. On garde les participes
+    s’ils sont sémantiques (ex.: "non indiqué") via le groupe lexical.
+  examples:
+    - "Pas de récidive a été retrouvée. → récidive"
+    - "Aucun traitement adjuvant n’était proposé. → traitement, adjuvant"
+# 4) 'plus' n'est négatif que si 'ne' est présent dans la même proposition
+#    (sécurité au niveau scopes, le primaire est côté 10_markers — cf. bloc plus bas)
+- id: QC_PLUS_REQUIRES_NE
+  when_group: "bipartite"
+  action: "SKIP_PLUS_IF_NO_NE_IN_CLAUSE"
+  options:
+    require_ne_in_clause: true
+    clause_max_tokens: 40
+  notes: >
+    Empêche d’interpréter 'plus' comme négatif hors 'ne … plus' (comparatif/quantité).
+  examples:
+    - "Il ne marche plus. → (géré par bipartites, OK)"
+    - "Il mange plus de légumes. → (pas une négation, à ignorer)"
+
+# 5) Compléments 'avec …' par défaut exclus du scope, sauf si une règle a explicitement autorisé
+- id: QC_EXCLUDE_AVEC_BY_DEFAULT
+  when_pattern: ".*"
+  action: "EXCLUDE_AVEC_COMPLEMENTS"
+  options:
+    preposition: "avec"
+    unless_flag: ["avec_allowed=1"]    # posé par LOC_G_CORE quand 'avec' fait partie du complexe nié
+    max_span_from_head: 12
+  notes: >
+    Par défaut, on n’inclut pas les segments 'avec …' (souvent contextuels).
+    LOCUTIONS v5.1 pose 'avec_allowed=1' lorsque le complexe (p.ex. un syndrome) inclut 'avec …'.
+  examples:
+    - "Absence de récidive avec stabilité des lésions. → récidive"
+    - "Absence de syndrome infectieux avec fièvre et frissons. → syndrome, infectieux, fièvre, frissons"
+
+# 6) Expressions lexicalisées globales → ignorer
+- id: QC_GLOBAL_LEXICALIZED_SKIP
+  when_pattern: ".*"
+  action: "SKIP_SCOPES_IF_LEXICALIZED_SPAN"
+  options:
+    lexicons: ["LEXICON_LEXICALIZED", "SANS_LEXICALIZED_PATTERNS"]
+  notes: >
+    Garde-fou transversal contre les composés figés (ex.: "syndrome des jambes sans repos").
+  examples:
+    - "Syndrome des jambes sans repos documenté. → (aucun scope de négation)"
+
+# 7) Revalidation finale : scope non vide et pas strictement verbal
+- id: QC_SCOPE_MIN_SANITY
+  when_pattern: ".*"
+  action: "ENSURE_SCOPE_NOT_EMPTY_AND_NOT_ONLY_VERB"
+  options:
+    prefer_np: true
+    backoff_right_np_window: 8
+  notes: >
+    Si après exclusions le scope est vide ou purement verbal, on revient au GN essentiel le plus proche.
+  examples:
+    - "L’examen ne révèle aucune anomalie, selon l’interne. → examen, anomalie"

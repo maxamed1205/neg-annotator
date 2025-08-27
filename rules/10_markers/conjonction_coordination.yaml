@@ -1,0 +1,91 @@
+# ——————————————————————————————————————————————————————————————
+# A) Coordination négative : "ni … ni … (ni …)" (y compris en position initiale)
+# ——————————————————————————————————————————————————————————————
+- id: NI_NI_COORD
+  when_pattern: '\bni\b'
+  cue_label: ["{match}"]
+  group: "conjonction"
+  notes: >
+    Coordination négative "ni … ni … (ni …)".
+    Chaque occurrence de "ni" est annotée séparément.
+    Couvre aussi les cas où la phrase commence par "Ni".
+    S’il y a x "ni" dans la phrase, on émet x cues.
+    D’autres marqueurs éventuels (ex: "ne … pas", "aucun", "sans")
+    sont détectés par leurs propres règles.
+  options:
+    regex: true
+    global: true
+    case_insensitive: true
+    exclude_verbs_from_cue: true
+  examples:
+    - "Il ne présente ni fièvre ni toux. → ne pas, ni, ni"
+    - "Ni hépatomégalie, ni splénomégalie, ni adénopathie. → ni, ni, ni"
+    - "Ni le patient ni le médecin n’étaient présents. → ni, ni, n’"
+    - "On n’a trouvé ni mutation, ni délétions, ni duplication. → ne pas, ni, ni, ni"
+
+# ——————————————————————————————————————————————————————————————
+# B) Cas mixtes génériques : combinaison avec autres marqueurs
+# ——————————————————————————————————————————————————————————————
+- id: NI_COMBINAISONS
+  when_pattern: >
+    (?P<first>
+      pas\s+d(?:e|u|’|'')\s+[^,;:.]+?     # "pas de X"
+      |sans\s+[^,;:.]+?                   # "sans X"
+      |aucun|aucune|aucuns|aucunes        # "aucun…"
+      |nul|nulle|nuls|nulles              # "nul…"
+      |jamais                             # "jamais …"
+      |rien                               # "rien …"
+      |personne                           # "personne …"
+      |guère                              # "guère …"
+      |point                              # "point …"
+    )(?:,\s*)?(?P<ni>\bni\b)(?:\s+\w+)?(?:\s*,?\s*ni\s+\w+)*
+  cue_label: ["{first}", "{ni}"]
+  group: "conjonction"
+  notes: >
+    Cas mixtes génériques : "X, ni Y (ni Z …)".
+    Couvre désormais :
+    - "pas de X, ni Y"
+    - "sans X ni Y"
+    - "aucun … ni …"
+    - "jamais … ni …"
+    - "rien … ni …"
+    - "personne … ni …"
+    - "guère … ni …"
+    - "point … ni …"
+    Permet aussi la répétition de plusieurs "ni".
+    Produit toujours deux cues distincts : le premier marqueur et les "ni".
+    Si un "ne" verbal est présent, il est capté par NE_BIPARTITE_EXTENDED.
+  options:
+    regex: true
+    global: true
+    case_insensitive: true
+    exclude_verbs_from_cue: true
+  examples:
+    - "Pas de douleurs thoraciques, ni palpitations. → pas de, ni"
+    - "Abdomen souple sans masse ni défense. → sans, ni"
+    - "Aucune anomalie ni récidive n’a été constatée. → aucune, ni, n’"
+    - "Jamais fièvre, ni toux. → jamais, ni"
+    - "Rien ni personne n’a été trouvé. → rien, ni, personne"
+    - "Guère d’amélioration, ni progrès notable. → guère, ni"
+    - "Point d’argument, ni justification. → point, ni"
+
+# ——————————————————————————————————————————————————————————————
+# D) Idiomes / cas non négatifs
+# ——————————————————————————————————————————————————————————————
+- id: NI_EXCEPTIONS
+  when_pattern: "(ni plus,? ni moins|ni vu ni connu)"
+  action: "SKIP"
+  notes: >
+    Expressions figées idiomatiques → pas de vraie négation.
+    - "ni plus ni moins" = équivalent de "exactement"
+    - "ni vu ni connu" = idiome figé ("en toute discrétion")
+    Ces cas ne doivent pas être annotés comme des négations.
+  options:
+    regex: true
+    case_insensitive: true
+    exclude_verbs_from_cue: true
+  examples:
+    - "C’est ni plus ni moins un miracle. → SKIP"
+    - "C’est ni plus, ni moins qu’un constat. → SKIP"
+    - "Il est parti ni vu ni connu. → SKIP"
+    - "Tout s’est passé ni vu ni connu. → SKIP"

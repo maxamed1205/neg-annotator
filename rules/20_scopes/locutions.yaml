@@ -1,0 +1,180 @@
+# ============================================================
+# 20_scopes/locutions.yaml — v5.1 (group-based, data-driven)
+# Portées pour tout cue du groupe: "locution"
+# - CORE: DE_GN avec extensions contrôlées (relations, "avec …" SMART)
+# - SUPPORT_AUTO: 0..N gouverneurs, gauche & droite (préps agentives/normatives/référence)
+# Dépendances:
+#   - 10_markers assigne group="locution"
+#   - Ressources externes (optionnelles, éditables sans toucher la règle) :
+#       * SEM_HEADS_INCLUDE_AVEC         : têtes GN où "avec …" est constitutif (ex. syndrome, triade…)
+#       * AVEC_CONTEXT_NOUNS             : noms de contexte (surveillance, suivi, protocole, prise en charge…)
+#       * RIGHT_SUPPORT_PREPS_AGENCY     : prépositions agentives (par, de la part de, sous l'autorité de…)
+#       * RIGHT_SUPPORT_PREPS_NORMATIVE  : préps normatives (conformément à, en vertu de, au titre de…)
+#       * RIGHT_SUPPORT_PREPS_REFERENCE  : préps de référence (selon, d’après, en accord avec, au regard de…)
+# ============================================================
+# ----------------------------------------------------------
+# 0) Garde: ignorer les usages non assertifs / titres / rubriques
+# ----------------------------------------------------------
+- id: LOC_G_SKIP_NON_ASSERTIVE
+  when_group: "locution"
+  scope_strategy: "SKIP_IF_NOT_ASSERTIVE"
+  priority: "very_high"
+  options:
+    consider_section_titles: true
+    title_left_window_tokens: 20
+    title_trigger_regex: ":[\\s\\-–—]*$"
+    allow_bullet_headers: true
+  notes: >
+    Évite les faux positifs lorsque la locution apparaît en intitulé (ex. "Absence de : …").
+  examples:
+    - "Rubrique : Absence de … (titre). → (skip)"
+
+# ----------------------------------------------------------
+# 1) CORE — DE_GN avec extensions SMART (relations, 'avec …')
+#   - scope = GN complet après 'de' (sans 'de/d’')
+#   - coord après UNE locution → UN SEUL scope (X et Y regroupés)
+#   - inclut relations ('lié à', 'en rapport avec', 'secondaire à', etc.)
+#   - 'avec …' inclus SEULEMENT si pertinent (SMART, data-driven)
+# ----------------------------------------------------------
+- id: LOC_G_CORE
+  when_group: "locution"
+  scope_strategy: "LOCUTION_DE_SMART"
+  options:
+    max_token_gap: 8
+    stop_punct: [".",";",":"]
+
+    # Base: DE_GN
+    de_anchor_policy: "require"
+    strip_leading_de: true
+
+    # Coordination → UN scope
+    group_coord_as_single_scope: true
+    coord_surface: ["et","ou",","]
+    prefer_dep_label: "conj"
+
+    # Relations à inclure (data-driven possible)
+    relation_triggers: ["lié à","en rapport avec","secondaire à","associé à"]
+    include_relations: true
+    external_relation_triggers: "REL_TRIGGERS_OPTIONAL"   # (si dispo)
+
+    # ====== 'AVEC …' SMART (aucun mot en dur dans la règle) ======
+    avec_policy: "smart"
+    avec_require_direct_attach_to_head: true         # l’ADP 'avec' doit dépendre de la tête GN (nmod/obl du head)
+    avec_ban_if_finite_verb_between: true            # exclure si un verbe conjugué intervient entre head et 'avec'
+    avec_max_gap_tokens: 8
+    # Listes externes éditables (aucun hard-code ici)
+    avec_heads_include_external: "SEM_HEADS_INCLUDE_AVEC" # ex. {syndrome, tableau, constellation, triade, complexe, pattern…}
+    avec_context_nouns_external: "AVEC_CONTEXT_NOUNS"     # ex. {surveillance, suivi, protocole, traitement, prise en charge, monitoring}
+    # Règles
+    avec_include_if_head_in_external: true           # inclure si la tête GN ∈ SEM_HEADS_INCLUDE_AVEC
+    avec_exclude_if_object_in_context_external: true # exclure si l’objet de 'avec' ∈ AVEC_CONTEXT_NOUNS
+    avec_semantic_tie_to_head: "required"            # n’inclure que si l’objet de 'avec' qualifie le head (tie via deps/proximité)
+    # =============================================================
+
+    # Fallback
+    fallback:
+      strategy: "DE_GN_COMPLET"
+
+  guards:
+    # Priorité préposition négative (ex. 'sans') si co-présente
+    deny_if_group_present:
+      group: "preposition"
+      labels: ["sans"]
+      window_tokens: 8
+      precedence: "higher"
+
+  notes: >
+    LOCUTION_DE_SMART :
+      - Extrait DE_GN (tête + modifieurs), puis ajoute relations (triggers internes/externes).
+      - 'avec …' est décidé par des critères syntaxiques + listes externes :
+          * attachement direct à la tête GN (nmod/obl sur le head),
+          * pas de verbe conjugué séparant head et 'avec',
+          * tête GN ∈ SEM_HEADS_INCLUDE_AVEC (externe),
+          * l’objet de 'avec' n’est PAS un nom de contexte ∈ AVEC_CONTEXT_NOUNS (externe).
+      - Exemples : 
+          ✓ "Absence de syndrome infectieux avec fièvre et frissons." → inclut 'avec …'
+          ✗ "Absence de récidive avec surveillance en cours." → exclut 'avec surveillance'.
+  examples:
+    - "Absence de fièvre et frissons. → fièvre, frissons"
+    - "À défaut de données, images ou comptes rendus. → données, images, comptes rendus"
+    - "Absence d’événement indésirable grave lié aux procédures spécifiques. → événement, indésirable, grave, lié, procédures, spécifiques"
+    - "Absence de syndrome infectieux avec fièvre et frissons. → syndrome, infectieux, fièvre, frissons"
+    - "Absence de récidive avec surveillance en cours. → récidive"
+
+
+# ----------------------------------------------------------
+# 2) SUPPORT_AUTO — gouverneurs 0..N, gauche & droite (agentif / normatif / référence)
+#   - élargi aux prépositions non agentives (normatives, référence)
+#   - paramétrable via listes externes (aucun hard-code dans la règle)
+# ----------------------------------------------------------
+- id: LOC_G_SUPPORT_AUTO
+  when_group: "locution"
+  scope_strategy: "GOVERNOR_SUPPORT_AUTO"
+  options:
+    # Fenêtres
+    left_window_tokens: 12
+    right_window_tokens: 14
+
+    # Prépositions droites (data-driven, multi-catégories)
+    right_support_preps:
+      agency_external:      "RIGHT_SUPPORT_PREPS_AGENCY"      # ex. {par, de la part de, sous l’autorité de, sous la supervision de}
+      normative_external:   "RIGHT_SUPPORT_PREPS_NORMATIVE"   # ex. {conformément à, en vertu de, au titre de}
+      reference_external:   "RIGHT_SUPPORT_PREPS_REFERENCE"   # ex. {selon, d’après, en accord avec, au regard de}
+    # (le moteur concatène ces listes au runtime)
+
+    # Sélection candidats
+    allowed_pos: ["NOUN","PROPN"]
+    prefer_dep_path: true
+    allowed_governor_rels: ["nsubj","nsubj:pass","obl","obl:agent","nmod","appos","conj","parataxis","compound"]
+    ban_dep_labels: ["expl"]    # ignore 'il' explétif
+    stopwords_governors: ["il","elle","cela","ceci","on","nous","vous","ils","elles","y","l’","l'"]
+
+    # Titres/documents à gauche
+    consider_section_titles: true
+    title_left_window_tokens: 20
+    title_trigger_regex: ":[\\s\\-–—]*$"
+    title_attach_policy: "closest_left_title"
+
+    prefer_support_types: ["EXAMEN_PROCEDURE","ORGANE_SIEGE","DOCUMENT_SOURCE","SUJET_PATIENT","INSTITUTION_NORME"]
+
+    # Rattachement & multi
+    tie_to_core_scope: true
+    attach_to_all_scopes: true
+    multi_support: true
+    max_support: 3
+    coalesce_duplicates: true
+    output_role: "support"
+
+  guards:
+    deny_if_group_present:
+      group: "preposition"
+      labels: ["sans"]
+      window_tokens: 8
+      precedence: "higher"
+
+  notes: >
+    GOVERNOR_SUPPORT_AUTO (étendu) :
+      - Droite: détecte agents (par…), normes (conformément à, en vertu de, au titre de…),
+        références (selon, d’après, en accord avec, au regard de…), via listes EXTERNES.
+      - Attache uniquement si lien plausible (deps/proximité) vers la portée CORE.
+      - Exemple : "Absence de validation conformément au protocole interne." → support = protocole interne.
+      - Exemple : "Absence de données en accord avec la littérature." → support = littérature.
+  examples:
+    - "Absence d’anomalie observée par le radiologue. → radiologue, anomalie"
+    - "Absence de validation conformément au protocole interne. → protocole interne, validation"
+    - "Absence de données en accord avec la littérature. → littérature, données"
+    - "En l’absence d’adénopathies médiastinales à l’IRM. → IRM, adénopathies médiastinales"
+
+
+# ----------------------------------------------------------
+# 3) Fallback générique — sécurité
+# ----------------------------------------------------------
+- id: LOC_G_FALLBACK
+  when_group: "locution"
+  scope_strategy: "DE_GN_COMPLET"
+  priority: "low"
+  options:
+    strip_leading_de: true
+    max_token_gap: 8
+    stop_punct: [".",";",":"]
+

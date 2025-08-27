@@ -1,0 +1,118 @@
+# ============================================================
+# 20_scopes/determinant.yaml — v5 (group-based)
+# Portées pour tout cue du groupe: "determinant"
+# - CORE: extrait la (ou les) portées GN
+# - SUPPORT_AUTO: ajoute 0..N gouverneurs (contexte), gauche & droite
+# Dépendances:
+#   - 10_markers canonise cue_label et assigne group="determinant"
+#   - Orchestrateur sait router par groupe + gérer les priorités entre groupes
+# ============================================================
+
+# ------------------------------------------------------------
+# 1) CORE — portée(s) négative(s) pour tout déterminant
+#   - ancre et stratégie choisies automatiquement:
+#       * si 'de/d’' est au cue ou juste après → DE_GN_COMPLET
+#       * sinon → GN_COMPLET_APRES_DETERMINANT
+#   - scinde en multi-scopes sur coordination (deps 'conj' ou surface)
+#   - fallback fenêtre si extraction GN échoue
+# ------------------------------------------------------------
+- id: DET_G_CORE
+  when_group: "determinant"
+  scope_strategy: "DET_NEG_GN_SMART"
+  options:
+    max_token_gap: 8
+    stop_punct: [".",";",":"]
+    # Auto-ancrage (pas de marqueurs en dur):
+    anchor_policy: "auto"          # "auto" = détecte si le cue/sa suite immédiate porte 'de|d’'
+    de_window_tokens: 2            # regarde 2 tokens à droite du cue pour 'de|d’'
+    allow_adverbs: true            # 'jamais', 'rarement', etc. n'élargissent pas la portée
+    # Multi-portées:
+    emit_multi_scopes: true
+    coord:
+      prefer_dep_label: "conj"     # si deps disponibles
+      surface_conj: ["et","ou",","] # secours sans deps (on laisse 'ni' au module coordination)
+      split_on_shared_head: true   # découpe NP coordonnées partageant le même gouverneur
+    # Fallback:
+    fallback:
+      strategy: "WINDOW_NP_RIGHT"
+      window_tokens: 8
+  guards:
+    # Si une préposition négative à priorité supérieure (ex. 'sans') coexiste, laisser l'autre groupe mener.
+    deny_if_group_present:
+      group: "preposition"
+      labels: ["sans"]             # labels canoniques fournis par 10_markers/preposition
+      window_tokens: 8
+      precedence: "higher"
+    # La coordination 'ni … ni …' est routée par le groupe "conjonction" → évite les doubles portées ici.
+    deny_if_surface:
+      - pattern: "\bni\b"
+        options: { regex: true, case_insensitive: true }
+  notes: >
+    DET_NEG_GN_SMART (générique):
+      (1) Détecte si l'ancre "de|d’" est portée par le cue ou ses 2 tokens suivants → extrait DE_GN_COMPLET.
+      (2) Sinon → GN_COMPLET_APRES_DETERMINANT.
+      (3) Si NP coordonnée → émet une portée par coordonné (via deps 'conj' ou surface_conj).
+      (4) Fallback WINDOW_NP_RIGHT si extraction échoue.
+      (5) La portée n'inclut jamais le cue/sujet/copule.
+  examples:
+    - "Aucune lésion détectée. → scope: lésion"
+    - "Pas de récidive du processus tumoral. → scope: récidive du processus tumoral"
+    - "L’équipe n’a observé aucune récidive et aucune métastase. → scope: récidive, métastase"
+    - "Aucune récidive, aucune métastase. → scope: récidive, métastase"
+
+
+# ------------------------------------------------------------
+# 2) SUPPORT_AUTO — gouverneurs 0..N, gauche & droite (contexte)
+#   - toujours exécuté (n’émet rien si aucun candidat)
+#   - multi-supports (ex. "médecin traitant" & "chirurgien")
+#   - gauche prioritaire ; droite via prépositions agentives
+#   - ignore PRON explétifs ; gère titres/sections (avant ':')
+#   - rattache chaque support à toutes les portées CORE (si tie validé)
+# ------------------------------------------------------------
+- id: DET_G_SUPPORT_AUTO
+  when_group: "determinant"
+  scope_strategy: "GOVERNOR_SUPPORT_AUTO"
+  options:
+    # Fenêtres de recherche
+    left_window_tokens: 12
+    right_window_tokens: 12
+    right_agent_preps: ["par","selon","d’après","de la part de"]  # générique — pas un marqueur négatif
+    # Sélection candidats
+    allowed_pos: ["NOUN","PROPN"]
+    prefer_dep_path: true
+    allowed_governor_rels: ["nsubj","nsubj:pass","obl","obl:agent","nmod","appos","conj","parataxis","compound"]
+    ban_dep_labels: ["expl"]        # ignore pronoms explétifs (ex: 'il' de 'il y a')
+    stopwords_governors: ["il","elle","cela","ceci","on","nous","vous","ils","elles","y","l’","l'"]
+    # Titres/sections à gauche (avant :)
+    consider_section_titles: true
+    title_left_window_tokens: 20
+    title_trigger_regex: ":[\\s\\-–—]*$"
+    title_attach_policy: "closest_left_title"
+    # Rattachement aux portées
+    tie_to_core_scope: true         # exige un chemin (dep ou proximité) vers une portée CORE
+    attach_to_all_scopes: true
+    # Multi-supports
+    multi_support: true
+    max_support: many
+    coalesce_duplicates: true
+    # Rôle (non-polarisant)
+    output_role: "support"
+  guards:
+    # Même logique de priorité inter-groupes que pour CORE
+    deny_if_group_present:
+      group: "preposition"
+      labels: ["sans"]
+      window_tokens: 8
+      precedence: "higher"
+  notes: >
+    GOVERNOR_SUPPORT_AUTO:
+      - Cherche prioritairement NOUN/PROPN à gauche ; à droite via {right_agent_preps} ou 'obl:agent'.
+      - Valide tie_to_core_scope via deps si possible ; sinon proximité structurée.
+      - Déduplique et retient jusqu'à {max_support} supports.
+      - N’émet rien si aucun candidat plausible.
+  examples:
+    - "Le médecin traitant et le chirurgien n’ont trouvé aucune anomalie. → scope: médecin traitant, chirurgien, anomalie"
+    - "Aucune anomalie n’a été observée par l’équipe. → scope: équipe, anomalie"
+    - "Rapport d’expertise : aucune conclusion définitive. → scope: Rapport d’expertise, conclusion définitive"
+    - "Il n’y a eu aucun signe de récidive. → scope: signe de récidive"
+

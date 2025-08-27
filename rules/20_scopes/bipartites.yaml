@@ -1,0 +1,216 @@
+# ============================================================
+# 20_scopes/bipartites.yaml — v5 (group-based, replaces ne_pas.yaml)
+# Portées pour tout cue du groupe: "bipartite"
+# Couvre: "ne … pas/plus/jamais/point/guère", "rien ne", "personne ne",
+#         ellipses "ne + verbe" (style télégraphique), hors "ne … que" (non-négatif).
+# - CORE: choisit automatiquement la bonne stratégie de portée selon le cadre verbal
+# - COOC_RESOLVE: fusion/partage de cibles avec 'determinant' si même entité
+# - SUPPORT_AUTO: 0..N gouverneurs (patient/examen/document/agent), gauche & droite
+# Dépendances:
+#   - 10_markers/bipartites.yaml assigne group="bipartite" (et SKIP "ne … que")
+#   - Ressources externes (optionnelles):
+#       * BIP_VERBS_COPULA       : être, paraître, sembler, rester…
+#       * BIP_VERBS_CONSTATER    : montrer, révéler, déceler, détecter, constater, observer…
+#       * BIP_VERBS_OCCURRENCE   : présenter, développer, faire, survenir…
+#       * RIGHT_SUPPORT_PREPS_*  : (voir locutions v5.1)
+# ============================================================
+  # ----------------------------------------------------------
+  # 0) Garde "ne … que" (sécurité si le marker n’a pas déjà SKIP)
+  # ----------------------------------------------------------
+- id: BIP_G_SKIP_NE_QUE
+  when_group: "bipartite"
+  scope_strategy: "SKIP_IF_PATTERN"
+  priority: "very_high"
+  options:
+    pattern: "\\b(n['’]?|ne)\\b\\s+\\bque\\b"   # simplifié
+    regex: true
+    case_insensitive: true
+    max_token_gap: 8
+    stop_punct: [".",";",":"]
+    fallback_char_gap: 40   # utilisé seulement si la segmentation en tokens échoue
+  notes: >
+    "ne … que" exprime une restriction (≈ seulement), pas une négation.
+    Priorité au gap en tokens (max_token_gap: 8).
+    Le fallback caractères (40) n’est utilisé qu’en cas de segmentation défaillante.
+  examples:
+    - "Il ne mange que des légumes. → (skip, restriction)"
+    - "Elle n’a que deux enfants. → (skip, restriction)"
+    - "Le patient ne présente que des symptômes mineurs. → (skip, restriction)"
+    - "On n’observe que de rares anomalies. → (skip, restriction)"
+    - "Il n’y a eu que des cas isolés. → (skip, restriction)"
+
+  # ----------------------------------------------------------
+  # 1) CORE — portée(s) SMART pour tout bipartite
+  #    Cadres (ordonnés) :
+  #      a) PRON_NEG_SUJET : "rien ne …", "personne ne …" → prédicat complet
+  #      b) COPULA_ATTR    : copule + attribut (ADJ/NOM) → sujet optionnel, attribut prioritaire
+  #      c) CONSTATER_EXAM : verbes d’examen/constat → entité niée (NP) ; l’examen ira en SUPPORT
+  #      d) OCCURRENCE     : verbes d’occurrence clinique → entité niée (NP) ; le sujet ira en SUPPORT
+  #      e) ACTION_VP      : verbe d’action/fonction → VP minimale (verbe + complément essentiel)
+  #    + Multi-scopes sur NP coordonnés (hors "ni", géré par conjonction)
+  #    + Ellipse "ne + verbe" : fallback conservateur (VP/NP droite)
+  # ----------------------------------------------------------
+- id: BIP_G_CORE
+  when_group: "bipartite"
+  scope_strategy: "NEP_SMART"
+  options:
+  max_token_gap: 8
+  stop_punct: [".",";",":"]
+
+  frames_order: ["PRON_NEG_SUJET","COPULA_ATTR","CONSTATER_EXAM","OCCURRENCE","ACTION_VP","FALLBACK"]
+  verbs_copula_external: "BIP_VERBS_COPULA"
+  verbs_constater_external: "BIP_VERBS_CONSTATER"
+  verbs_occurrence_external: "BIP_VERBS_OCCURRENCE"
+
+  # === PRON_NEG_SUJET (rien/personne) ===
+  pron_neg_subjects: ["rien","personne"]
+  pron_scope_policy: "full_then_minimal"   # défaut: prédicat complet, sinon fallback minimal
+  pron_scope_max_tokens: 12                # seuil pour déclencher le fallback
+  pron_minimal_strategy: "VP_MINIMAL_CORE" # verbe contenu + arguments essentiels
+  # Aide pour VP_MINIMAL_CORE :
+  raising_verbs_external: "RAISING_OR_LIGHT_VERBS"   # p.ex. sembler, paraître, vouloir, pouvoir, devoir, essayer, chercher à…
+  prefer_xcomp_infinitive: true                      # si xcomp/infinitif existe → prendre l’infinitif (reprendre, marcher…)
+  minimal_include_objects: true                      # inclure objets/compléments essentiels (obj, xcomp, iobj, comp:obl 'à/de')
+  minimal_exclude_adjuncts: true                     # exclure advmod/obl circonstanciels (temps, concession…)
+  adjunct_preps_nonessential_external: "ADJUNCT_PREPS_NONESSENTIAL"
+    # ex. ["malgré","en dépit de","au regard de","en accord avec","selon","d’après","conformément à"]
+
+  # === COPULA ===
+  copula_include_subject_in_scope: true
+
+  # === CONSTATER/EXAMEN ===
+  constater_extract_entity: true
+  prefer_de_gn_if_present: true
+  constater_include_subject_in_scope: true   # <-- ajout
+
+  # Coordination (hors 'ni', géré par conjonction)
+  emit_multi_scopes: true
+  coord:
+    prefer_dep_label: "conj"
+    surface_conj: ["et",","]
+    split_on_shared_head: true
+
+  # === OCCURRENCE ===
+  occurrence_extract_entity: true
+  occurrence_include_subject_in_scope: true  # <-- ajout
+
+  # === ACTION_VP ===
+  action_vp_minimal: true
+  action_include_subject_in_scope: true      # <-- ajout
+
+  # === FALLBACK (ellipse 'ne + verbe') ===
+  fallback:
+    strategy: "WINDOW_RIGHT_SMART"
+    window_tokens: 8
+
+  guards:
+  deny_if_surface:
+    - pattern: "\bni\b"
+      options: { regex: true, case_insensitive: true }
+  deny_if_group_present:
+    group: "preposition"
+    labels: ["sans"]
+    window_tokens: 8
+    precedence: "higher"
+  notes: >
+    PRON_NEG_SUJET:
+      - Par défaut: portée = prédicat complet.
+      - Si le prédicat dépasse {pron_scope_max_tokens} tokens → fallback 'VP_MINIMAL_CORE':
+        * saute les verbes de montée/auxiliaires légers (RAISING_OR_LIGHT_VERBS),
+        * privilégie l’infinitif de contenu (xcomp) si présent,
+        * inclut objets/compléments essentiels (obj, xcomp, comp 'à/de'),
+        * exclut les adjuncts non essentiels (advmod/obl avec préps de ADJUNCT_PREPS_NONESSENTIAL).
+
+    COPULA_ATTR / CONSTATER / OCCURRENCE / ACTION_VP:
+      - Tous configurés avec *_include_subject_in_scope: true
+      - Donc la portée inclut aussi le sujet (ex.: "IRM ne montre pas" → IRM).
+
+  examples:
+    - "Personne ne tousse. → scope: personne, tousse"
+    - "Rien ne fonctionne. → scope: rien, fonctionne"
+    - "Personne ne semble vouloir reprendre le traitement en cours malgré les explications du médecin."
+      # prédicat long → fallback minimal : scope: personne, reprendre, traitement
+    - "Le résultat n’est pas concluant. → scope: résultat, concluant"
+    - "L’IRM ne montre pas de récidive. → scope: IRM, récidive"
+    - "La patiente n’a pas présenté de complication. → scope: patiente, complication"
+    - "Le patient ne parvient pas à avaler de liquide. → scope: patient, avaler, liquide"
+  # ----------------------------------------------------------
+  # 1.b) Résolution de cooccurrence avec le groupe 'determinant'
+  #   - Si 'ne …' et un déterminant négatif visent la MÊME entité → 1 seul scope partagé
+  #   - Sinon (cibles distinctes) → scopes séparés (on ne fusionne pas)
+  # ----------------------------------------------------------
+- id: BIP_G_COOC_DET_RESOLVE
+  when_group: "bipartite"
+  scope_strategy: "RESOLVE_COOCURRENCE"
+  options:
+    with_group: "determinant"
+    same_clause_max_tokens: 40
+    merge_if_same_target: true
+    merge_strategy: "UNION_ON_SAME_NP_HEAD"   # même tête nominale → fusion
+    keep_distinct_if_frames_differ: true      # ex. copule vs déterminant → ne pas fusionner
+  notes: >
+    Résolution des cooccurrences bipartite + déterminant :
+    - Si les deux visent la même entité → un seul scope fusionné.
+    - Si ce sont des cibles distinctes → scopes séparés.
+  examples:
+    - "Aucune récidive n’a été constatée. → scope: récidive"     # fusion (même tête nominale)
+    - "Aucun événement indésirable n’est attendu. → scope: événement indésirable, attendu"  # distincts
+# ----------------------------------------------------------
+# 2) SUPPORT_AUTO — gouverneurs 0..N (patient/examen/doc/agent), gauche & droite
+#   - reprend le canevas locutions/determinant, avec prépositions droites data-driven
+# ----------------------------------------------------------
+- id: BIP_G_SUPPORT_AUTO
+  when_group: "bipartite"
+  scope_strategy: "GOVERNOR_SUPPORT_AUTO"
+  options:
+    # Fenêtres
+    left_window_tokens: 12
+    right_window_tokens: 14
+
+    # Prépositions droites (data-driven, multi-catégories — réutilise tes listes externes)
+    right_support_preps:
+      agency_external:      "RIGHT_SUPPORT_PREPS_AGENCY"
+      normative_external:   "RIGHT_SUPPORT_PREPS_NORMATIVE"
+      reference_external:   "RIGHT_SUPPORT_PREPS_REFERENCE"
+
+    # Sélection candidats
+    allowed_pos: ["NOUN","PROPN"]
+    prefer_dep_path: true
+    allowed_governor_rels: ["nsubj","nsubj:pass","obl","obl:agent","nmod","appos","conj","parataxis","compound"]
+    ban_dep_labels: ["expl"]
+    stopwords_governors: ["il","elle","cela","ceci","on","nous","vous","ils","elles","y","l’","l'"]
+
+    # Titres/documents à gauche
+    consider_section_titles: true
+    title_left_window_tokens: 20
+    title_trigger_regex: ":[\\s\\-–—]*$"
+    title_attach_policy: "closest_left_title"
+
+    prefer_support_types: ["SUJET_PATIENT","EXAMEN_PROCEDURE","DOCUMENT_SOURCE","ORGANE_SIEGE","INSTITUTION_NORME"]
+
+    # Rattachement & multi
+    tie_to_core_scope: true
+    attach_to_all_scopes: true
+    multi_support: true
+    max_support: 3
+    coalesce_duplicates: true
+    output_role: "support"
+
+  guards:
+    deny_if_group_present:
+      group: "preposition"
+      labels: ["sans"]
+      window_tokens: 8
+      precedence: "higher"
+  notes: >
+      Attache le sujet patient, l’examen, le document/source, ou un agent normatif/référence,
+      sans affecter la polarité (role='support').
+  examples:
+      - "Personne ne tousse. → scope: personne, tousse"
+      - "L’IRM ne montre pas de récidive. → scope: IRM, récidive"
+      - "La patiente n’a pas présenté de complication. → scope: patiente, complication"
+      - "Le patient ne parvient pas à avaler de liquide. → scope: patient, avaler, liquide"
+      - "Absence de validation conformément au protocole interne. → scope: protocole interne, validation"
+      - "Absence de données en accord avec la littérature. → scope: littérature, données"
+
+

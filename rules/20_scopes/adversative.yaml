@@ -1,0 +1,27 @@
+# ============================================================
+# 20_scopes/adversatives.yaml — v1 (nouveau)
+# Groupe: "adversative"
+# Portées pour les conjonctions adversatives restrictives
+# (ex.: "mais" quand il oppose une négation ou une restriction)
+# ============================================================
+# ----------------------------------------------------------
+# 1) MAIS_RESTRICTIF — prend la proposition qui suit "mais"
+# ----------------------------------------------------------
+- id: ADV_MAIS_RESTRICTIF
+  when_group: "adversative"
+  scope_strategy: "WINDOW_RIGHT_SMART"
+  options:
+    labels_filter: ["mais"]
+    window_tokens: 20
+    stop_punct: [".",";"]
+  notes: >
+    Gestion des conjonctions adversatives introduisant une restriction
+    (ex. "mais non", "mais aucun", "mais pas de").
+    La portée est la proposition qui suit immédiatement "mais".
+    Si un marqueur négatif est présent à droite, il est prioritaire.
+  examples:
+    - "Le traitement semblait efficace, mais non concluant. → concluant"
+    - "L’examen est rassurant, mais pas complet. → complet"
+    - "La tumeur a diminué, mais aucun ganglion n’a disparu. → ganglion"
+    - "Amélioration clinique, mais sans normalisation biologique. → normalisation biologique"
+

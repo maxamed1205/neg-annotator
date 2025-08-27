@@ -1,0 +1,142 @@
+# ============================================================
+# 20_scopes/coordination.yaml — v5 (group-based, data-driven)
+# Groupe: "conjonction" — coordination négative "ni"
+# - CONJ_NI_CORE         : découpe la chaîne "ni … (ni …)*" et émet 1 scope par élément
+# - CONJ_NI_SUPPORT_AUTO : ancre 0..N supports (patient/exam/doc/agent) à chaque scope
+# - CONJ_NI_FALLBACK     : sécurité si l'analyse structurée échoue
+# Dépendances:
+#   - 10_markers assigne group="conjonction" + label canonique "ni"
+#   - Ressources externes (optionnelles) :
+#       * META_HEADS_DE        : têtes méta pour "X de Y" (signe/notion/trace/…)
+#       * RIGHT_SUPPORT_PREPS_*: agency/normative/reference (pour supports à droite)
+# ============================================================
+# ----------------------------------------------------------
+# 1) CORE — découpe et extraction par élément
+#   Gère :
+#     a) "ni X ni Y (ni Z)" → 1 scope/élément
+#     b) un seul "ni" suivi d’une série "X, Y ou Z" → 1 scope/élément
+#     c) "ni de X ni de Y" → on retire 'de' et on prend le GN complet
+#     d) infinitifs : "ni VERB[Inf] ni VERB[Inf]" → 1 scope/VP_inf
+#     e) adjectifs/qualifs partageant la même tête → duplication de tête
+# ----------------------------------------------------------
+- id: CONJ_NI_CORE
+  when_group: "conjonction"
+  scope_strategy: "NI_COORD_SMART"
+  options:
+    labels_filter: ["ni"]
+    max_token_gap: 8
+    stop_punct: [".",";",":"]
+
+    # Chaîne "ni … ni …"
+    prefer_dep_label: "conj"
+    surface_markers: ["ni"]
+    also_handle_single_ni_plus_series: true
+    series_conj_surface: ["et","ou",","]
+
+    # "ni de X ni de Y" : enlever 'de/d’' en tête d’élément
+    strip_leading_de: true
+    prefer_de_gn_if_present: true
+
+    # Infinitifs coordonnés
+    allow_infinitive_elements: true
+    infinitive_pos: ["VERB","AUX"]
+    infinitive_feature: "VerbForm=Inf"
+
+    # Adjectifs coordonnés avec tête partagée → dupliquer la tête
+    head_lift_for_adj_conj: true
+    head_pos_candidates: ["NOUN","PROPN"]
+
+    # Méta-têtes "X de Y" (data-driven)
+    meta_heads_de_external: "META_HEADS_DE"
+    meta_include_de_complement: true
+
+    # Émission : 1 portée par élément coordonné
+    emit_multi_scopes: true
+
+    # Mixte "pas de X, ni Y" : hériter du même support si possible
+    inherit_prev_support_in_clause: true
+    prev_negative_groups: ["determinant","bipartite","locution","preposition"]
+    same_clause_max_tokens: 40
+
+  notes: >
+    NI_COORD_SMART :
+      - Identifie la chaîne coordonnée par "ni" et émet une portée par élément.
+      - Variantes gérées : série après un seul 'ni', têtes introduites par 'de', infinitifs coordonnés,
+        adjectifs/qualifs partageant la même tête (duplication de tête), méta-têtes "X de Y".
+      - Si un négatif précédent est présent dans la même proposition (ex. "pas de X, ni Y"),
+        on essaie d’hériter du même support.
+  examples:
+    - "Ni hépatomégalie ni splénomégalie n’ont été notées. → hépatomégalie, splénomégalie"
+    - "Ne présente ni fièvre ni frissons. → fièvre, frissons"
+    - "Ni de sténose ni de thrombose des artères carotides. → sténose, thrombose des artères carotides"
+    - "Ni masses, kystes ou nodules. → masses, kystes, nodules"
+    - "Il ne peut ni avaler ni déglutir. → avaler, déglutir"
+    - "Ni antécédent personnel ni familial. → antécédent personnel, antécédent familial"
+    - "Ni signe de dysplasie ni signe d’infection. → signe de dysplasie, signe d’infection"
+    - "Pas de douleurs thoraciques, ni de palpitations. → douleurs thoraciques, palpitations"
+
+# ----------------------------------------------------------
+# 2) SUPPORTS — ancrage 0..N par portée (gauche & droite)
+#   - sujet patient, examen/procédure, organe/siège, document/source, norme/référence/agent
+# ----------------------------------------------------------
+- id: CONJ_NI_SUPPORT_AUTO
+  when_group: "conjonction"
+  scope_strategy: "GOVERNOR_SUPPORT_AUTO"
+  options:
+    labels_filter: ["ni"]
+
+    # Fenêtres
+    left_window_tokens: 12
+    right_window_tokens: 14
+
+    # Prépositions droites (data-driven)
+    right_support_preps:
+      agency_external:      "RIGHT_SUPPORT_PREPS_AGENCY"
+      normative_external:   "RIGHT_SUPPORT_PREPS_NORMATIVE"
+      reference_external:   "RIGHT_SUPPORT_PREPS_REFERENCE"
+
+    # Sélection
+    allowed_pos: ["NOUN","PROPN"]
+    prefer_dep_path: true
+    allowed_governor_rels: ["nsubj","nsubj:pass","obl","obl:agent","nmod","appos","conj","parataxis","compound"]
+    ban_dep_labels: ["expl"]
+    stopwords_governors: ["il","elle","cela","ceci","on","nous","vous","ils","elles","y","l’","l'"]
+
+    # Titres/documents à gauche
+    consider_section_titles: true
+    title_left_window_tokens: 20
+    title_trigger_regex: ":[\\s\\-–—]*$"
+    title_attach_policy: "closest_left_title"
+
+    prefer_support_types: ["SUJET_PATIENT","EXAMEN_PROCEDURE","ORGANE_SIEGE","DOCUMENT_SOURCE","INSTITUTION_NORME"]
+
+    # Rattachement & multi
+    tie_to_core_scope: true
+    attach_to_all_scopes: false       # support sélectionné par portée (plus précis)
+    prefer_prev_support_in_clause: true
+    multi_support: true
+    max_support: 2
+    coalesce_duplicates: true
+    output_role: "support"
+
+  notes: >
+    Cherche des gouverneurs plausibles à gauche/droite et les attache à CHAQUE portée issue de la coordination.
+    Préfère réutiliser le support déjà établi dans la même proposition (ex. mixte "pas…, ni …").
+
+# ----------------------------------------------------------
+# 3) Fallback — si l’analyse structurée rate
+# ----------------------------------------------------------
+- id: CONJ_NI_FALLBACK
+  when_group: "conjonction"
+  scope_strategy: "NI_SIMPLE_SPLIT"
+  priority: "low"
+  options:
+    labels_filter: ["ni"]
+    de_strip: true
+    series_conj_surface: ["et","ou",","]
+  notes: >
+    Découpage surface des éléments coordonnés après 'ni' (ou 'ni … ni …'), enlève 'de' en tête.
+    Si aucun support explicite n’est identifié, on ne met rien plutôt que "contexte".
+  examples:
+    - "Ni fièvre ni frissons. → fièvre, frissons"
+

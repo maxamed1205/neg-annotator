@@ -1,0 +1,114 @@
+# ——————————————————————————————————————————————————————————————
+# A) Marqueurs bipartite de base
+# ——————————————————————————————————————————————————————————————
+- id: NE_BIPARTITE_EXTENDED
+  when_pattern: >
+    (?:
+      # Cas inversé : "Personne ne …"
+      \b(?P<part2a>personne)\b\s+(?P<part1a>n['’]?|ne)\b
+      |
+      # Cas standard : "ne … pas/plus/jamais/rien/personne/guère/point/nul"
+      \b(?P<part1b>n['’]?|ne)\b\s+(?P<part2b>pas|plus|jamais|rien|personne|guère|point|nul)\b
+    )
+  cue_label: ["{part2a} {part1a}", "{part1b} {part2b}"]
+  group: "bipartite"
+  notes: >
+    Famille générale des marqueurs discontinus "ne … X".
+    - Cas standard : "ne … pas/plus/jamais/rien/personne/guère/point/nul".
+    - Cas inversé : "Personne ne …".
+    - Priorité au gap en tokens (max_token_gap: 8).
+      Le fallback caractères (40) n’est utilisé qu’en cas de segmentation token défaillante.
+  options:
+    regex: true
+    global: true
+    exclude_verbs_from_cue: true
+    case_insensitive: true
+    max_token_gap: 8
+    stop_punct: [".",";",":"]
+    fallback_char_gap: 40
+  negative_guards:
+    - '\brien que\b'
+    - '\b(?:n[''’]|ne)\b\s+que\b'
+  examples:
+    - "Il n’arrive pas à avaler. → n’ pas"
+    - "La douleur n’est plus ressentie. → ne plus"
+    - "Le patient n’a jamais fumé. → n’ jamais"
+    - "L’examen n’a rien montré. → n’ rien"
+    - "Il n’a vu personne. → n’ personne"
+    - "Personne ne vient. → personne ne"
+    - "Le malade ne se plaint guère. → ne guère"
+    - "Ce protocole n’est point recommandé. → n’ point"
+    - "Il n’est nul besoin de répéter. → ne nul"
+    - "Il ne veut jamais rien faire. → ne jamais, ne rien"
+    - "ne montre pas d’amélioration. → ne pas"
+
+# —————————————————————————————————————————————————————————————— 
+# B) Ellipse verbale "ne + verbe" sans pas/plus/jamais/rien/personne
+# ——————————————————————————————————————————————————————————————
+- id: NE_ELLIPTIQUE_VERBAL
+  when_pattern: '\b(?P<part1>n[''’]?|ne)\b\s+\w+'
+  cue_label: ["{part1}"]
+  group: "bipartite"
+  notes: >
+    Style télégraphique médical : "ne + verbe" seul.
+    On annote uniquement la particule "ne / n’ / n'".
+    La normalisation en "ne pas" est effectuée dans une étape distincte,
+    pour séparer la détection (corpus brut) de la standardisation.
+  options:
+    regex: true
+    case_insensitive: true
+    global: true
+    exclude_verbs_from_cue: true
+  examples:
+    - "n’était proposé. → n’"
+    - "n’a été constaté. → n’"
+    - "ne montrait signe. → ne"
+
+# ——————————————————————————————————————————————————————————————
+# C) Cooccurrence avec déterminants négatifs
+# ——————————————————————————————————————————————————————————————
+- id: NE_COEXISTE_AVEC_DETERMINANT
+  when_pattern: >
+    \b(?P<part1>n['’]?|ne)\b\s+\b(?P<det>aucun|aucune|pas d(?:e|’|'))
+  cue_label: ["{part1}", "{det}"]
+  group: "bipartite"
+  notes: >
+    Cas de cooccurrence : ex. "aucune anomalie n’a été constatée".
+    On annote séparément :
+    - le verbal ("ne / n’ / n'")
+    - le déterminant ("aucun / aucune / pas de").
+    Priorité au gap en tokens (max_token_gap: 8).
+    Le fallback caractères (40) n’est utilisé qu’en cas de segmentation défaillante.
+  options:
+    regex: true
+    case_insensitive: true
+    global: true
+    max_token_gap: 8
+    stop_punct: [".",";",":"]
+    fallback_char_gap: 40
+    exclude_verbs_from_cue: true
+  examples:
+    - "Aucune récidive n’a été constatée. → aucune, n’"
+    - "Pas de récidive n’a été mise en évidence. → pas de, ne"
+    - "Aucun traitement adjuvant n’était proposé. → aucun, n’"
+
+# ——————————————————————————————————————————————————————————————
+# D) Restrictif "ne … que" (NON négatif)
+# ——————————————————————————————————————————————————————————————
+- id: NE_RESTRICTIF_EXCLUSION
+  when_pattern: '\b(?P<part1>n[''’]?|ne)\b\s+\bque\b'
+  action: "SKIP"
+  notes: >
+    "ne … que" exprime une restriction (≈ seulement), ce n’est PAS une négation.
+    Priorité au gap en tokens (max_token_gap: 8).
+    Le fallback caractères (40) n’est utilisé qu’en cas de segmentation défaillante.
+  options:
+    regex: true
+    case_insensitive: true
+    max_token_gap: 8
+    stop_punct: [".",";",":"]
+    fallback_char_gap: 40
+    exclude_verbs_from_cue: true
+  examples:
+    - "Il ne prend que 5 mg. → SKIP"
+    - "On ne retient que deux hypothèses. → SKIP"

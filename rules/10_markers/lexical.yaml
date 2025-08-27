@@ -1,0 +1,272 @@
+# placeholder: lexical marker rules (non lexical, incapable de + INF, insuffisance de + GN, infirmé, etc.)
+# === MARQUEURS LEXICAUX ===
+# But : repérer les formes lexicalisées de négation (adjectifs, noms, adverbes).
+# → Ces marqueurs portent eux-mêmes la négation, sans 'ne ... pas" ou "aucun".
+
+# ——————————————————————————————————————————————————————————————
+# A) Adverbe / préfixe : "non" isolé ou répété
+# ——————————————————————————————————————————————————————————————
+- id: LEXICAL_NON_AVEC_OCCURENCES
+  when_pattern: '\b(?P<non>non)\b'
+  cue_label: ["{non}"]
+  group: "lexical"
+  notes: >
+    Adverbe ou préfixe 'non' utilisé pour nier une qualité, un état ou une propriété.
+    Chaque occurrence de "non" est annotée séparément.
+    Exemple : "non concluant, non significatif, non pertinent".
+  options:
+    regex: true
+    global: true
+    case_insensitive: true
+    exclude_verbs_from_cue: true
+  examples:
+    - "Résultat non concluant, non significatif. → non, non"
+    - "Un essai non randomisé et non contrôlé. → non, non"
+    - "Résultat non concluant, non significatif, non pertinent. → non, non, non"
+    - "Un traitement non efficace, non toléré et non recommandé. → non, non, non"
+
+# ——————————————————————————————————————————————————————————————
+# B) Formes composées avec trait d’union : "non-résécable"
+# ——————————————————————————————————————————————————————————————
+- id: LEXICAL_NON_COMPOSE
+  when_pattern: '\b(?P<non>non)-\w+'
+  cue_label: ["{non}"]
+  group: "lexical"
+  notes: >
+    Capture 'non' lorsqu’il est utilisé comme préfixe dans un mot composé :
+    ex: non-résécable, non-spécifique, non-fumeur.
+    Le trait d’union fait partie du mot, mais le cue est uniquement "non".
+    Chaque occurrence de 'non-' est annotée séparément.
+  options:
+    regex: true
+    case_insensitive: true
+    global: true
+    exclude_verbs_from_cue: true
+  examples:
+    - "Métastases non-résécables. → non"
+    - "Un patient non-fumeur. → non"
+    - "Test non-spécifique. → non"
+    - "Une maladie non-contagieuse et un produit non-homologué. → non, non"
+    - "Résultats non-concluants, non-significatifs et non-pertinents. → non, non, non"
+
+# ——————————————————————————————————————————————————————————————
+# C) Cas contrastifs / exceptions : "non pas" → SKIP
+# ——————————————————————————————————————————————————————————————
+- id: LEXICAL_NON_EXCEPTIONS
+  when_pattern: '\bnon\s+pas\b'
+  action: "SKIP"
+  notes: >
+    "non pas" est une tournure contrastive (≃ "plutôt"), ce n’est pas une négation autonome.
+  options:
+    regex: true
+    case_insensitive: true
+    exclude_verbs_from_cue: true
+  examples:
+    - "Il est venu non pas pour discuter, mais pour imposer son choix. → SKIP"
+    - "Non pas une erreur, mais une alternative. → SKIP"
+
+# ——————————————————————————————————————————————————————————————
+# D) Cas mixtes : combinaison "non" isolé + "non-" composé
+# ——————————————————————————————————————————————————————————————
+- id: LEXICAL_NON_MIXTE
+  when_pattern: '\b(?P<non1>non)\b|\b(?P<non2>non)-\w+'
+  cue_label: ["{non1}", "{non2}"]
+  group: "lexical"
+  notes: >
+    Cas où une phrase combine à la fois "non" isolé et des formes composées "non-".
+    Exemple : "non spécifique et non-résécable".
+    Chaque "non" (isolé ou composé) est capturé et annoté.
+  options:
+    regex: true
+    case_insensitive: true
+    global: true
+    exclude_verbs_from_cue: true
+  examples:
+    - "Un résultat non significatif et non-résécable. → non, non"
+    - "Un traitement non toléré, non-homologué et non recommandé. → non, non, non"
+
+
+# ——————————————————————————————————————————————————————————————
+# E) Adjectifs lexicaux exprimant une absence / impossibilité / inefficacité
+# ——————————————————————————————————————————————————————————————
+- id: LEXICAL_ADJECTIFS_NEGATIFS
+  when_pattern: >
+    \b(?P<adj>
+      absent(?:e|es|s)?|
+      inconnu(?:e|es|s)?|
+      impossible(?:s)?|
+      inefficace(?:s)?|
+      inopérant(?:e|es|s)?|
+      nul(?:le|les|s)?|
+      manquant(?:e|es|s)?|
+      déficient(?:e|es|s)?|
+      inadapté(?:e|es|s)?|
+      insuffisant(?:e|es|s)?|
+      indéterminé(?:e|es|s)?|
+      incertain(?:e|es|s)?|
+      inexpliqué(?:e|es|s)?|
+      invisible(?:s)?|
+      imperceptible(?:s)?|
+      illisible(?:s)?|
+      introuvable(?:s)?|
+      irrégulier(?:e|es|s)?|
+      incompatible(?:s)?|
+      irréalisable(?:s)?|
+      impraticable(?:s)?
+    )\b
+  cue_label: ["{adj}"]
+  group: "lexical"
+  notes: >
+    Adjectifs directement négatifs utilisés en français pour marquer :
+      - **Absence** : absent, manquant, déficient, introuvable
+      - **Inefficacité** : inefficace, inopérant, nul, inadapté, insuffisant
+      - **Impossibilité** : impossible, irréalisable, impraticable
+      - **Manque de connaissance** : inconnu, indéterminé, incertain, inexpliqué
+      - **Non-présence / non-perception** : invisible, imperceptible, illisible
+      - **Autres** : irrégulier, incompatible…
+    
+    ✅ Chaque adjectif est annoté séparément.
+    ✅ Si plusieurs adjectifs sont présents, ils sont tous captés.
+    ⚠️ Ne jamais fusionner plusieurs adjectifs dans un seul label.
+  options:
+    regex: true
+    case_insensitive: true
+    global: true
+    exclude_verbs_from_cue: true
+  examples:
+    - "Pouls radial absent. → absent"
+    - "Origine inconnue. → inconnu"
+    - "Traitement inefficace. → inefficace"
+    - "Un protocole nul et inadapté. → nul, inadapté"
+    - "Diagnostic indéterminé. → indéterminé"
+    - "Résultats illisibles. → illisibles"
+    - "Patient introuvable et dossier incomplet. → introuvable"
+    - "Traitement inefficace, inadapté et insuffisant. → inefficace, inadapté, insuffisant"
+    - "Cause inconnue et résultats invisibles. → inconnue, invisibles"
+
+
+# ——————————————————————————————————————————————————————————————
+# F) Substantifs lexicaux exprimant la négation — multi-termes FR
+# ——————————————————————————————————————————————————————————————
+- id: LEXICAL_NOMS_NEGATIFS
+  when_pattern: >
+    \b(?P<nom>
+      absence|manque|carence|défaut|insuffisance|pénurie|déficit|lacune|
+      exclusion|suppression|retrait|élimination|omission|
+      privation|perte|disparition|
+      négation|refus|rejet|contestation|contradiction|opposition|
+      impossibilité|incapacité|inaptitude|
+      interdiction|prohibition|
+      arrêt|suspension|blocage|interruption|
+      dispense|exemption|
+      nullité|invalidité|annulation
+    )\b
+  cue_label: ["{nom}"]
+  group: "lexical"
+  notes: >
+    Substantifs directement porteurs de négation en français.
+    Chaque substantif est capturé et annoté séparément.
+    ✅ Si plusieurs substantifs apparaissent dans une phrase,
+    ils sont tous captés (global = true).
+  options:
+    regex: true
+    case_insensitive: true
+    global: true
+    exclude_verbs_from_cue: true
+  examples:
+  # Absence / manque
+  - "En l’absence de fièvre. → absence"
+  - "Manque de données cliniques. → manque"
+  - "Carence en vitamine D. → carence"
+  - "Un défaut de cicatrisation. → défaut"
+  - "Insuffisance cardiaque chronique. → insuffisance"
+  - "Pénurie de médicaments essentiels. → pénurie"
+  - "Déficit immunitaire sévère. → déficit"
+  - "Lacune dans le dossier médical. → lacune"
+
+  # Exclusion / suppression
+  - "Exclusion de maladie infectieuse. → exclusion"
+  - "Suppression de l’antibiothérapie. → suppression"
+  - "Retrait du produit du marché. → retrait"
+  - "Élimination de toute cause infectieuse. → élimination"
+  - "Omission de certains symptômes. → omission"
+
+  # Privation / perte
+  - "Privation de sommeil. → privation"
+  - "Perte de poids involontaire. → perte"
+  - "Disparition des symptômes. → disparition"
+
+  # Négation / refus
+  - "Négation des faits établis. → négation"
+  - "Refus de traitement. → refus"
+  - "Rejet de la demande. → rejet"
+  - "Contestation du diagnostic. → contestation"
+  - "Contradiction avec les résultats antérieurs. → contradiction"
+  - "Opposition au protocole. → opposition"
+
+  # Impossibilité / incapacité
+  - "Impossibilité de réaliser le geste. → impossibilité"
+  - "Incapacité de marcher. → incapacité"
+  - "Inaptitude au travail. → inaptitude"
+
+  # Interdiction / prohibition
+  - "Interdiction de fumer. → interdiction"
+  - "Prohibition de certaines substances. → prohibition"
+
+  # Interruption / arrêt
+  - "Arrêt du traitement. → arrêt"
+  - "Suspension du protocole. → suspension"
+  - "Blocage de la procédure. → blocage"
+  - "Interruption de l’étude clinique. → interruption"
+
+  # Exemption / dispense
+  - "Dispense d’examen médical. → dispense"
+  - "Exemption de visa. → exemption"
+
+  # Invalidité / nullité
+  - "Nullité du contrat. → nullité"
+  - "Invalidité du certificat. → invalidité"
+  - "Annulation du résultat. → annulation"
+
+  # Cas multi-marqueurs
+  - "Absence de fièvre et carence en vitamine D. → absence, carence"
+  - "Suppression du traitement et retrait du produit. → suppression, retrait"
+  - "Perte de poids et disparition des symptômes. → perte, disparition"
+  - "Refus de soins et opposition au protocole. → refus, opposition"
+  - "Incapacité de marcher et impossibilité de parler. → incapacité, impossibilité"
+  - "Annulation du résultat et nullité du contrat. → annulation, nullité"
+  - "Blocage de la procédure et interruption du protocole. → blocage, interruption"
+
+# ——————————————————————————————————————————————————————————————
+# G) Verbes/adjectifs participiaux niant un diagnostic ou une hypothèse
+# ——————————————————————————————————————————————————————————————
+- id: LEXICAL_VERBES_NEGATE_DIAG
+  when_pattern: >
+    \b(?P<verb>
+      infirmé(?:e|es|s)?|
+      écarté(?:e|es|s)?|
+      exclu(?:e|es|s)?|
+      rejeté(?:e|es|s)?|
+      annulé(?:e|es|s)?|
+      non\s+retenu(?:e|es|s)?
+    )\b
+  cue_label: ["{verb}"]
+  group: "lexical"
+  notes: >
+    Verbes ou participes passés utilisés pour indiquer qu’un diagnostic,
+    une hypothèse ou une suspicion est NIÉE.
+    - Ex.: diagnostic infirmé, hypothèse écartée, diagnostic exclu, résultat annulé.
+    Ces lexèmes portent la négation eux-mêmes.
+    ⚠️ Ce groupe est relié à 20_scopes/lexical.yaml → règle LEX_G_NEGATE_DIAG.
+  options:
+    regex: true
+    case_insensitive: true
+    global: true
+    add_feature_flag: "lex_action=NEGATE_DIAG"
+  examples:
+    - "Diagnostic d’abcès infirmé. → infirmé"
+    - "Hypothèse de thrombose écartée. → écartée"
+    - "Diagnostic de tumeur exclu. → exclu"
+    - "Diagnostic de méningite rejeté. → rejeté"
+    - "Suspicion de cancer non retenue. → non retenue"
+    - "Résultat annulé. → annulé"

@@ -1,0 +1,186 @@
+# ——————————————————————————————————————————————————————————————
+# LOCUTIONS LEXICALES DE NÉGATION — familles générales
+# ——————————————————————————————————————————————————————————————
+
+# ——————————————————————————————————————————————————————————————
+# A) Contrôle qualité
+# ——————————————————————————————————————————————————————————————
+- id: QC_MULTIPLE_CUES
+  when_pattern: "*"
+  action: "VALIDATE_ALL_CUES_PRESENT"
+  notes: >
+    Vérifie que lorsqu’une phrase contient plusieurs marqueurs,
+    ils sont tous listés dans les exemples/tests associés.
+# ——————————————————————————————————————————————————————————————
+# B) Locutions exprimant l’absence / le défaut
+# ——————————————————————————————————————————————————————————————
+- id: LOCUTIONS_ABSENCE
+  when_pattern: "(?P<loc>absence|défaut|faute|sans possibilité|carence)(?= de)"
+  cue_label: ["{loc}"]
+  group: "locution"
+  notes: >
+    Locutions exprimant l’absence ou le défaut d’une entité.
+    Cue = mot central uniquement, "de ..." reste hors du cue.
+    Scope = le GN qui suit immédiatement.
+    ✅ Si plusieurs locutions apparaissent dans la phrase,
+    elles sont toutes captées et annotées séparément (global = true).
+  options:
+    regex: true
+    global: true
+    case_insensitive: true
+    exclude_verbs_from_cue: true
+  examples:
+    - "En l’absence de fièvre. → absence"
+    - "À défaut de traitement efficace. → défaut"
+    - "Faute de preuves suffisantes. → faute"
+    - "Sans possibilité de recours. → sans possibilité"
+    - "En carence de vitamine D. → carence"
+    # Cas multi-marqueurs
+    - "En l’absence de fièvre et à défaut de traitement efficace. → absence, défaut"
+    - "Faute de preuves et en carence de vitamine D. → faute, carence"
+    - "En l’absence de données, sans possibilité de recours. → absence, sans possibilité"
+    - "À défaut de protocole et en l’absence de validation. → défaut, absence"
+# ——————————————————————————————————————————————————————————————
+# C) Locutions exprimant l’exclusion / l’exception
+# ——————————————————————————————————————————————————————————————
+- id: LOCUTIONS_EXCLUSION
+  when_pattern: >
+    (?P<loc>
+      hors
+      |sauf
+      |exception
+      |exclusion
+      |en\s+dehors
+      |en\s+marge
+      |à\s+l[’']écart
+    )(?=\s+de)
+  cue_label: ["{loc}"]
+  group: "locution"
+  notes: >
+    Locutions exprimant l’exclusion ou l’exception.
+    Cue = mot central uniquement, "de ..." reste hors du cue.
+    Scope = le GN exclu.
+    ✅ Si plusieurs locutions apparaissent dans la phrase, elles sont toutes captées (global = true).
+    ✅ Expressions couvertes :
+       - "hors de"
+       - "sauf"
+       - "à l’exception de"
+       - "à l’exclusion de"
+       - "en dehors de"
+       - "en marge de"
+       - "à l’écart de"
+  options:
+    regex: true
+    global: true
+    case_insensitive: true
+    exclude_verbs_from_cue: true
+  examples:
+    - "Diagnostic hors de cause. → hors"
+    - "Sauf complication. → sauf"
+    - "À l’exception de la fièvre. → exception"
+    - "À l’exclusion des mineurs. → exclusion"
+    - "En dehors de tout contexte infectieux. → en dehors"
+    - "En marge de l’étude clinique. → en marge"
+    - "À l’écart de tout conflit d’intérêt. → à l’écart"
+    # Cas multi-marqueurs
+    - "À l’exception de la fièvre et à l’exclusion des mineurs. → exception, exclusion"
+    - "En dehors de tout contexte infectieux, sauf complication. → en dehors, sauf"
+    - "Diagnostic hors de cause et en marge de la pathologie. → hors, en marge"
+# ——————————————————————————————————————————————————————————————
+# D) Locutions exprimant la privation / le retrait
+# ——————————————————————————————————————————————————————————————
+- id: LOCUTIONS_PRIVATION
+  when_pattern: >
+    (?P<loc>privé|dépourvu|dénué|vide|exempt|délesté|débarrassé|soustrait|orphelin)(?=\s+(de|d[’']))
+  cue_label: ["{loc}"]
+  group: "locution"
+  notes: >
+    Locutions exprimant la privation ou le retrait d’une propriété.
+    Cue = mot central uniquement (jamais "de …").
+    Si plusieurs occurrences apparaissent dans la phrase, elles sont toutes captées
+    (x marqueurs détectés = x cues annotés).
+  options:
+    regex: true
+    global: true
+    case_insensitive: true
+    exclude_verbs_from_cue: true
+  examples:
+    - "Patient privé de soutien familial. → privé"
+    - "Rapport dépourvu de preuves. → dépourvu"
+    - "Texte dénué de cohérence. → dénué"
+    - "Boîte vide de tout contenu. → vide"
+    - "Dossier exempt de toute erreur. → exempt"
+    - "Un sac délesté de ses charges. → délesté"
+    - "Texte débarrassé de toute ambiguïté. → débarrassé"
+    - "Sujet orphelin de références bibliographiques. → orphelin"
+    - "Document soustrait au contrôle, exempt de signature. → soustrait, exempt"
+    - "Rapport dépourvu de preuves et texte dénué de cohérence. → dépourvu, dénué"
+    - "Patient privé de soutien, dossier exempt d’erreurs et texte orphelin de sources. → privé, exempt, orphelin"
+    - "Rapport dépourvu de preuves, texte dénué de cohérence et boîte vide de contenu. → dépourvu, dénué, vide"
+    - "Un protocole soustrait au contrôle et exempt de justification. → soustrait, exempt"
+    - "Article orphelin de citations et dossier délesté de pièces. → orphelin, délesté"
+    - "Texte dépourvu de clarté, rapport privé d’explications et note débarrassée d’annotations. → dépourvu, privé, débarrassé"
+    - "Document exempt de référence, orphelin de sources et dénué de logique. → exempt, orphelin, dénué"
+    - "Compte rendu dénué de précision et privé d’exemples concrets. → dénué, privé"
+    - "Un sac délesté de charges, boîte vide de contenu et rapport soustrait au contrôle. → délesté, vide, soustrait"
+# ——————————————————————————————————————————————————————————————
+# E) Locutions comparatives / restrictives
+# ——————————————————————————————————————————————————————————————
+- id: LOCUTIONS_COMPARATIVES
+  when_pattern: "(pas plus que|loin de|plutôt que|moins que|guère que)"
+  cue_label: ["{match}"]
+  group: "locution"
+  notes: >
+    Locutions comparatives ou restrictives à valeur négative.
+    ⚠️ Le cas "ni … ni …" est géré dans conjonction_coordination.yaml.
+    ⚠️ Les adverbes comme "nullement" sont traités dans lexical.yaml.
+    Chaque occurrence trouvée doit être annotée séparément.
+  options:
+    regex: true
+    global: true
+    case_insensitive: true
+    exclude_verbs_from_cue: true
+  examples:
+    - "Il ne présentait pas d’hypertension, pas plus que de diabète. → ne pas, pas plus que"
+    - "Ce résultat est loin de faire consensus. → loin de"
+    - "Elle n’a pas réussi, loin de là. → n’ pas, loin de"
+    - "Il n’est pas venu, pas plus que son frère. → n’ pas, pas plus que"
+    - "On a observé moins de complications que prévu, guère que quelques cas isolés. → moins que, guère que"
+    - "Il n’a pas agi, plutôt que de réagir. → n’ pas, plutôt que"
+    - "Pas plus que ses collègues, il n’a participé. → pas plus que, n’ pas"
+    - "L’expérience est loin de prouver quoi que ce soit, pas plus que l’étude précédente. → loin de, pas plus que"
+# ——————————————————————————————————————————————————————————————
+# Locutions d’exception / exclusion
+# ——————————————————————————————————————————————————————————————
+- id: LOCUTIONS_EXCEPTION
+  when_pattern: >
+    (?P<loc>
+      à\s+l’exception\s+de
+      |à\s+l’exclusion\s+de
+      |excepté
+      |hormis
+      |mis\s+à\s+part
+    )
+  cue_label: ["{loc}"]
+  group: "locution"
+  notes: >
+    Locutions exprimant l’exception ou l’exclusion (non prépositionnelles simples).
+    - Exception : exception, exclusion, sauf, excepté, hormis, mis à part, outre
+    À séparer de PREP_NEG_GENERIQUE (dans preposition.yaml).
+    Scope = le GN immédiatement après.
+  options:
+    regex: true
+    case_insensitive: true
+    global: true
+    exclude_verbs_from_cue: true
+  examples:
+    - "À l’exception de la fièvre. → exception"
+    - "À l’exclusion des mineurs. → exclusion"
+    - "Sauf complication. → sauf"
+    - "Excepté les mineurs. → excepté"
+    - "Hormis la fatigue, tout était normal. → hormis"
+    - "Mis à part ce détail, l’examen était normal. → mis à part"
+    # Cas multi-marqueurs
+    - "À l’exception de la fièvre et à l’exclusion de certaines variables. → exception, exclusion"
+    - "En dehors de tout contexte infectieux, sauf complication. → en dehors, sauf"
+    - "Diagnostic hors de cause et en marge de la pathologie. → hors, en marge"

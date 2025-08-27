@@ -1,0 +1,184 @@
+# ============================================================
+# 20_scopes/preposition.yaml — v5 (group-based)
+# Groupe: "preposition" — ici on cible la préposition négative "sans"
+# - PREP_G_SKIP_LEXICALIZED : ignorer expressions figées (ex. "syndrome des jambes sans repos")
+# - PREP_SANS_CORE          : portée SMART = [SUPPORT + ENTITÉ] (ou [SUPPORT + VP_inf]) avec coord, méta-têtes, etc.
+# - PREP_SANS_SUPPORT_AUTO  : supports additionnels (normes/références/agents) en rôle 'support'
+# - PREP_G_FALLBACK         : sécurité
+# Dépendances:
+#   - 10_markers assigne group="preposition" et label canonique "sans"
+#   - Ressources externes (optionnelles, data-driven):
+#       * SANS_MODALITY_HEADS      : ["préparation","injection","contraste","produit de contraste",...]
+#       * SANS_PARTICULARITE_HEADS : ["particularité","particularités"]
+#       * SANS_RESULT_HEADS        : ["succès","efficacité","complication","tolérance","événement indésirable",...]
+#       * SANS_META_HEADS_DE       : ["signe","signes","notion","notions","trace","traces","preuve","preuves","évidence","évidences","indice","indices"]
+#       * OCCURRENCE_VERBS         : ["présenter","développer","faire","survenir","déclencher",...]
+#       * RIGHT_SUPPORT_PREPS_*    : (voir locutions v5.1 : AGENGY/NORMATIVE/REFERENCE)
+# ============================================================
+
+rules:
+
+  # ----------------------------------------------------------
+  # 0) Skip lexicalisés (pas une négation)
+  # ----------------------------------------------------------
+  - id: PREP_G_SKIP_LEXICALIZED
+    when_group: "preposition"
+    scope_strategy: "SKIP_IF_LEXICALIZED"
+    priority: "very_high"
+    options:
+      labels_filter: ["sans"]
+      lexicalized_patterns:
+        - "syndrome des jambes sans repos"
+      external_lexicons:
+        - "LEXICON_LEXICALIZED"
+    notes: >
+      Ignore les occurrences lexicalisées de "sans" dans une expression figée (pas une négation).
+    examples:
+      - "Syndrome des jambes sans repos. → (skip)"
+  # ----------------------------------------------------------
+  # 1) CORE — "sans" SMART (GN complet / VP infinitif) + ancrage SUPPORT
+  #   - Scope = [SUPPORT, ENTITÉ_GN_COMPLET] ou [SUPPORT, VP_inf]
+  #   - Gère: modalités (préparation/injection/contraste), particularité(s),
+  #           résultats d’acte (succès/efficacité/complication/tolérance),
+  #           méta-têtes "signe/notion/trace/… de X", infinitif, coordinations (ni/et/ou/,)
+  # ----------------------------------------------------------
+  - id: PREP_SANS_CORE
+    when_group: "preposition"
+    scope_strategy: "SANS_SMART_SUPPORT_PLUS_TARGET"
+    options:
+      labels_filter: ["sans"]
+      max_token_gap: 8
+      stop_punct: [".",";",":"]
+
+      # ------ Extraction de la CIBLE ------
+      prefer_de_gn_if_present: true         # si "de/d’ GN" après la tête, prendre le GN complet
+      allow_infinitive_target: true         # "sans" + VERB[Inf] → cible = VP infinitif complet
+      occurrence_verbs_external: "OCCURRENCE_VERBS"
+      inf_occurrence_maps_to_entity: true   # si verbe d’occurrence à l’inf → extraire l'entité (obj/comp) plutôt que le verbe
+
+      # Méta-têtes: inclure "tête + de + complément" (ex.: "signe de dysplasie")
+      meta_heads_de_external: "SANS_META_HEADS_DE"
+      meta_include_de_complement: true
+
+      # Modalités techniques (data-driven)
+      modality_heads_external: "SANS_MODALITY_HEADS"
+      modality_force_support: "EXAMEN_PROCEDURE"
+
+      # Particularité(s) (data-driven)
+      particularite_heads_external: "SANS_PARTICULARITE_HEADS"
+      particularite_force_support: "EXAMEN_PROCEDURE"
+
+      # Résultats/Modalités d’acte (data-driven)
+      result_heads_external: "SANS_RESULT_HEADS"
+      result_force_support_types: ["EXAMEN_PROCEDURE","TRAITEMENT_GESTE"]
+
+      # ------ Ancrage SUPPORT (dans la portée) ------
+      support_finders:
+        priority_order:
+          - "SUJET_PATIENT"       # nsubj patient/sujet/participant…
+          - "EXAMEN_PROCEDURE"    # IRM, scanner, examen clinique, etc.
+          - "ORGANE_SIEGE"        # abdomen, poumon, lésion, région…
+          - "TRAITEMENT_GESTE"    # rééducation, radiothérapie, administration…
+          - "SYMPTOME_ETAT"       # fièvre, douleur, signes (si rôle de support)
+      fallback_support: "contexte" # si rien trouvé
+
+      # ------ Coordination ------
+      # Un seul "sans" suivi d'une liste → produire 1 scope PAR élément coordonné, tous ancrés au même SUPPORT
+      emit_multi_scopes: true
+      coord_markers: ["ni","et","ou",","]
+      prefer_dep_label: "conj"
+
+    notes: >
+      Extrait la cible après "sans" (GN complet ou VP infinitif) et l’ancre à un SUPPORT contextuel.
+      Gère aussi les cas spéciaux via ressources externes (modalités, particularité(s), résultats d’acte, méta-têtes).
+      Si une liste coordonnée suit "sans" → un scope par élément.
+    examples:
+      - "Le patient est suivi sans douleur. → patient, douleur"
+      - "Abdomen souple sans masse palpable. → abdomen, masse palpable"
+      - "Poursuivis sans modification. → contexte, modification"
+      - "Examen sans signe de dysplasie. → examen, signe de dysplasie"
+      - "Patient sans notion d’allergie. → patient, notion d’allergie"
+      - "Patient sans présenter de complication. → patient, complication"
+      - "En post-op, sans faire de fièvre. → contexte, fièvre"
+      - "Sans nodules, kystes ou masses. → contexte, nodules | contexte, kystes | contexte, masses"
+  # ----------------------------------------------------------
+  # 2) SUPPORTS additionnels (à droite/gauche) en rôle 'support'
+  #   - Agents (par…), normes (conformément à…), références (selon/d’après/en accord avec…)
+  #   - N’ajoute PAS à la polarité (role='support'); complète l’ancrage de CORE si besoin
+  # ----------------------------------------------------------
+  - id: PREP_SANS_SUPPORT_AUTO
+    when_group: "preposition"
+    scope_strategy: "GOVERNOR_SUPPORT_AUTO"
+    options:
+      labels_filter: ["sans"]
+
+      # Fenêtres
+      left_window_tokens: 12
+      right_window_tokens: 14
+
+      # Prépositions droites (data-driven)
+      right_support_preps:
+        agency_external:      "RIGHT_SUPPORT_PREPS_AGENCY"     # ex.: par, de la part de, sous l’autorité de…
+        normative_external:   "RIGHT_SUPPORT_PREPS_NORMATIVE"  # ex.: conformément à, en vertu de, au titre de…
+        reference_external:   "RIGHT_SUPPORT_PREPS_REFERENCE"  # ex.: selon, d’après, en accord avec, au regard de…
+
+      # Sélection candidats
+      allowed_pos: ["NOUN","PROPN"]
+      prefer_dep_path: true
+      allowed_governor_rels: ["nsubj","nsubj:pass","obl","obl:agent","nmod","appos","conj","parataxis","compound"]
+      ban_dep_labels: ["expl"]
+      stopwords_governors: ["il","elle","cela","ceci","on","nous","vous","ils","elles","y","l’","l'"]
+
+      # Titres/documents à gauche
+      consider_section_titles: true
+      title_left_window_tokens: 20
+      title_trigger_regex: ":[\\s\\-–—]*$"
+      title_attach_policy: "closest_left_title"
+
+      prefer_support_types: ["EXAMEN_PROCEDURE","ORGANE_SIEGE","DOCUMENT_SOURCE","SUJET_PATIENT","INSTITUTION_NORME"]
+
+      # Rattachement & multi
+      tie_to_core_scope: true
+      attach_to_all_scopes: true
+      multi_support: true
+      max_support: 3
+      coalesce_duplicates: true
+      output_role: "support"
+
+    notes: >
+      Ajoute des supports additionnels à gauche ou à droite (agent, norme, référence) sans changer la polarité.
+    examples:
+      - "Absence de validation conformément au protocole interne. → support: protocole interne || scope: validation"
+      - "Sans anomalie en accord avec la littérature. → support: littérature || scope: anomalie"
+      - "Sans anomalie observée par le radiologue. → support: radiologue || scope: anomalie"
+  # ----------------------------------------------------------
+  # 3) Fallback — conditionnel (uniquement si support trouvé)
+  # ----------------------------------------------------------
+  - id: PREP_G_FALLBACK
+    when_group: "preposition"
+    scope_strategy: "SANS_SIMPLE_SUPPORT_PLUS_GN"
+    priority: "low"
+    options:
+      labels_filter: ["sans"]
+      max_token_gap: 8
+      stop_punct: [".",";",":"]
+
+      support_finders:
+        priority_order:
+          - "SUJET_PATIENT"
+          - "EXAMEN_PROCEDURE"
+          - "ORGANE_SIEGE"
+          - "TRAITEMENT_GESTE"
+          - "SYMPTOME_ETAT"
+
+      require_support: true      # ⬅️ nouveau : n’émet rien si aucun support trouvé
+      # fallback_support supprimé
+
+    notes: >
+      Fallback minimal pour "sans" :
+      - Cherche un GN à droite (entité niée).
+      - N’émet un scope que si un support explicite a été trouvé via {support_finders}.
+      - Si aucun support n’existe → ne produit rien (pas de support artificiel comme "contexte").
+    examples:
+      - "Sans anomalie notable. → (aucun scope)"   # car pas de support trouvé
+      - "Examen sans anomalie notable. → [examen, anomalie notable]"

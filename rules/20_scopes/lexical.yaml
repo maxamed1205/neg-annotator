@@ -1,0 +1,170 @@
+# ============================================================
+# 20_scopes/lexical.yaml — v5 (group-based, SMART)
+# Portées pour tout cue du groupe: "lexical"
+# - CORE: extrait la(les) portée(s) selon le cadre lexical détecté
+# - SUPPORT_AUTO: ajoute 0..N gouverneurs (contexte), gauche & droite
+# Dépendances:
+#   - 10_markers canonise cue_label et assigne group="lexical"
+#   - Idéalement, 10_markers pose des flags (ex: lex_frame=DE_GN|DE_INF|A_INF, lex_subtype=NON_MOD, lex_action=NEGATE_DIAG)
+# ============================================================
+  # ----------------------------------------------------------
+  # 0) Garde haute priorité — ignorer les composés lexicalisés
+  #    (ex: "lymphome non hodgkinien", "non small cell", etc.)
+  # ----------------------------------------------------------
+- id: LEX_G_SKIP_LEXICALIZED
+  when_group: "lexical"
+  scope_strategy: "SKIP_IF_LEXICALIZED"
+  priority: "very_high"
+  lexicalized_patterns: |
+    - "\bnon\s+hodgkinien(ne)?s?\b"
+    - "\b(non[-\s])?small\s+cell\b"
+    - "\bnon[-\s]?insulino(dépendant|d[éè]pendant)e?s?\b"
+    - "\bnon[-\s]?union\b"
+  external_lexicons:
+    - "LEXICON_LEXICALIZED"   # table externe si dispo
+  notes: >
+    Si le cue 'non' (ou autre lexème) fait partie d’un composé nosologique lexicalisé,
+    on N’ÉMET PAS de portée de négation. Laisse le module entités/diagnostics traiter ces GN.
+  examples:
+    - "Lymphome non hodgkinien. → (skip)"
+    - "Carcinome non small cell. → (skip)"
+    - "Diabète non insulinodépendant. → (skip)"
+
+  # ----------------------------------------------------------
+  # 1) CORE — portée(s) selon cadre lexical détecté (SMART)
+  #    Cadres couverts, sans marqueurs en dur:
+  #      a) NON_MOD: "non" + ADJ/PART  → HEAD_PLUS_ADJ_PART si tête NOUN proche, sinon ADJ/PART seul
+  #      b) DE_GN:   lexème + "de/d’" + GN → DE_GN_COMPLET (multi-scopes si coordination)
+  #      c) DE_INF:  lexème + "de/d’" + INF → DE_INFINITIF_COMPLET
+  #      d) A_INF:   lexème + "à" + INF → A_INFINITIF_COMPLET
+  #    Fallback: WINDOW_NP/ADJ droit si rien de structuré n’est trouvé
+  # ----------------------------------------------------------
+- id: LEX_G_CORE
+  when_group: "lexical"
+  scope_strategy: "LEXICAL_SMART"
+  options:
+    max_token_gap: 8
+    stop_punct: [".",";",":"]
+    frames_order: ["NON_MOD","DE_GN","DE_INF","A_INF","HEAD_ADJ_FALLBACK"]
+    detect_non_mod: true     # ex: "examen non effectué", "non compressif"
+    detect_de_gn: true       # ex: "insuffisance de sodium", "inefficacité de traitement"
+    detect_de_inf: true      # ex: "impossible de marcher", "incapable de s’alimenter"
+    detect_a_inf: true       # ex: "inapte à conduire", "interdit à pratiquer"
+    head_adj_fallback: true  # si NON_MOD sans tête nominale claire → ADJ/PART seul
+    emit_multi_scopes: true
+    coord:
+      prefer_dep_label: "conj"       # si deps disponibles
+      surface_conj: ["et","ou",","]  # secours sans deps (on laisse 'ni' au groupe conjonction)
+      split_on_shared_head: true
+    fallback:
+      strategy: "WINDOW_RIGHT_SMART" # choisit NP vs ADJ selon le contexte
+      window_tokens: 8
+  guards:
+    # Évite le chevauchement avec le groupe "preposition" (ex. 'sans'):
+    deny_if_group_present:
+      group: "preposition"
+      labels: ["sans"]         # labels canoniques du groupe préposition
+      window_tokens: 8
+      precedence: "higher"
+    # La coordination 'ni … ni …' est routée par le groupe conjonction
+    deny_if_surface:
+      - pattern: "\bni\b"
+        options: { regex: true, case_insensitive: true }
+  notes: >
+    LEXICAL_SMART:
+      - S’il existe un flag de frame (ex. lex_frame=DE_GN/DE_INF/A_INF), il prime.
+      - Sinon heuristique:
+          * 'de|d’' juste après le lexème → DE_GN ou DE_INF selon POS (NOUN vs VERB[VerbForm=Inf]).
+          * 'à' + INF → A_INF.
+          * 'non' + ADJ/PART:
+              - s’il modifie un NOUN proche → HEAD_PLUS_ADJ_PART (GN minimal + adj/part)
+              - sinon → ADJ/PART seul.
+      - Multi-scopes sur coordonnés (ex.: "insuffisance de sodium et de potassium" → 2 portées).
+      - N’inclut jamais le cue dans la portée.
+  examples:
+    - "Examen non effectué. → examen | effectué"
+    - "Syndrome non compressif. → syndrome | compressif"
+    - "Non contributif. → contributif"
+    - "Impossible de marcher. → marcher"
+    - "Incapable de s’alimenter. → s’alimenter"
+    - "Inapte à conduire. → conduire"
+    - "Insuffisance de sodium et de potassium. → sodium | potassium"
+    - "Inefficacité de traitement. → traitement"
+
+  # ----------------------------------------------------------
+  # 1.b) (optionnel) Cadre verbe → diagnostic/hypothèse NIÉ(E)
+  #      Ex: "diagnostic d’abcès infirmé", "hypothèse de thrombose infirmée"
+  #      Pour rester sans hard-code, s’appuie sur un flag posé en 10_markers:
+  #      lex_action=NEGATE_DIAG (pour 'infirmé', 'écarté', 'exclu', etc.)
+  # ----------------------------------------------------------
+- id: LEX_G_NEGATE_DIAG
+  when_group: "lexical"
+  scope_strategy: "DIAGNOSTIC_DE_COMPLET_SMART"
+  options:
+    require_flags: ["lex_action=NEGATE_DIAG"]
+    max_token_gap: 8
+    stop_punct: [".",";",":"]
+    head_nouns_hint: ["diagnostic","hypothèse","suspicion","piste","étiologie"]
+    detach_prep_head: true     # retire 'de/d’' de l’expansion de la tête si besoin
+    fallback:
+      strategy: "DE_GN_COMPLET"
+  notes: >
+    DIAGNOSTIC_DE_COMPLET_SMART:
+      - cherche une tête nominale de type {head_nouns_hint} puis prend le GN après 'de/d’'
+      - si non trouvé, fallback DE_GN_COMPLET à partir du cue.
+  examples:
+    - "Diagnostic d’abcès infirmé. → diagnostic, abcès"
+    - "Hypothèse de thrombose infirmée. → hypothèse, thrombose"
+
+
+  # ----------------------------------------------------------
+  # 2) SUPPORT_AUTO — gouverneurs 0..N, gauche & droite (contexte)
+  #    (identique à determinant v5, adapté au groupe lexical)
+  # ----------------------------------------------------------
+- id: LEX_G_SUPPORT_AUTO
+  when_group: "lexical"
+  scope_strategy: "GOVERNOR_SUPPORT_AUTO"
+  options:
+    left_window_tokens: 12
+    right_window_tokens: 12
+    right_agent_preps: ["par","selon","d’après","de la part de"]
+    allowed_pos: ["NOUN","PROPN"]
+    prefer_dep_path: true
+    allowed_governor_rels: ["nsubj","nsubj:pass","obl","obl:agent","nmod","appos","conj","parataxis","compound"]
+    ban_dep_labels: ["expl"]    # ignore 'il' explétif, etc.
+    stopwords_governors: ["il","elle","cela","ceci","on","nous","vous","ils","elles","y","l’","l'"]
+    consider_section_titles: true
+    title_left_window_tokens: 20
+    title_trigger_regex: ":[\\s\\-–—]*$"
+    title_attach_policy: "closest_left_title"
+    tie_to_core_scope: true
+    attach_to_all_scopes: true
+    multi_support: true
+    max_support: 2
+    coalesce_duplicates: true
+    output_role: "support"
+  guards:
+    deny_if_group_present:
+      group: "preposition"
+      labels: ["sans"]
+      window_tokens: 8
+      precedence: "higher"
+  notes: >
+    Cherche gouverneurs à gauche (prioritaire) puis à droite via {right_agent_preps}/'obl:agent'.
+    N’émet rien s’il n’y a pas de candidat plausible. Le rôle 'support' n’affecte pas la polarité.
+  examples:
+    # Support à gauche (sujet/acteur explicite)
+    - "Le radiologue juge la lésion non spécifique. → radiologue, lésion, spécifique"
+    - "Le médecin considère ce traitement non indiqué. → médecin, traitement, indiqué"
+    - "Les experts estiment l’examen non concluant. → experts, examen, concluant"
+    - "Rapport d’expertise : non contributif. → rapport d’expertise, contributif"
+
+    # Support à droite (agents, mentions normatives/références)
+    - "Non indiqué selon le protocole. → protocole, indiqué"
+    - "Non conforme aux recommandations de la HAS. → recommandations de la HAS, conforme"
+    - "Non validé par le comité scientifique. → comité scientifique, validé"
+    - "Non reconnu d’après les directives européennes. → directives européennes, reconnu"
+
+    # Pas de support plausible
+    - "Il n’y a eu aucun signe de récidive. → signe de récidive"
+

@@ -1,0 +1,20 @@
+# ——————————————————————————————————————————————————————————————
+# A) Mais restrictif / privatif
+# ——————————————————————————————————————————————————————————————
+- id: MAIS_RESTRICTIF
+  when_pattern: "(rien mais|tout mais)"
+  cue_label: ["{match}"]
+  group: "adversative"
+  notes: >
+    Cas figés où "mais" exprime une exclusion ou une privation.
+    - "rien mais" → équivalent à "rien d’autre que"
+    - "tout mais" → équivalent à "n’importe quoi sauf"
+    Ne pas généraliser à tous les "mais" pour éviter les faux positifs.
+  options:
+    regex: true
+    case_insensitive: true
+    exclude_verbs_from_cue: true
+  examples:
+    - "Il n’y a rien mais des problèmes. → rien, mais"
+    - "Tout mais ça ! → mais"
+    - "Rien mais des complications. → rien, mais"

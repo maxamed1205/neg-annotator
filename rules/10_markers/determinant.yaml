@@ -1,0 +1,192 @@
+# === MARQUEURS DÉTERMINANTS NÉGATIFS ===
+# Objectif : détecter les déterminants négatifs qui nient l'existence d'une entité nominale.
+# ⚠️ Ces règles n'attachent PAS de scope. Les portées sont gérées dans 20_scopes/determinant.yaml & co.
+# ⚠️ Ne jamais inclure de verbe dans le cue.
+
+# === MARQUEURS DÉTERMINANTS NÉGATIFS (généralisés) ===
+# Objectif : couvrir toutes les formes déterminantes négatives usuelles.
+# Inspiré de lexical.yaml → règle générique + sous-règles spécifiques si besoin.
+
+# ——————————————————————————————————————————————————————————————
+# A) Déterminants négatifs usuels (forme de base, incluant "guère de")
+# ——————————————————————————————————————————————————————————————
+- id: DET_NEG_GENERIQUE
+  when_pattern: >
+    \b(
+      aucun(?:e|s|es)?
+      |nul(?:le|s|les)?
+      |pas\s+d(?:e|’|'')
+      |pas\s+un(?:e)?
+      |jamais\s+de
+      |point\s+de
+      |guère\s+d(?:e|’|'')
+      |ni\s+un(?:e)?\s+seul(?:e)?
+    )\b
+  cue_label: ["{match}"]
+  group: "determinant"
+  notes: >
+    Déterminants ou locutions déterminantes qui nient l’existence d’une entité.
+    Chaque occurrence est captée séparément (global = true).
+    - Inclut : aucun, nul, pas de, pas un/une, jamais de, point de, guère de, ni un seul.
+  options:
+    regex: true
+    case_insensitive: true
+    global: true
+    exclude_verbs_from_cue: true
+  examples:
+    - "Aucun signe de dysplasie. → aucun"
+    - "Nul signe de complication. → nul"
+    - "Pas de récidive. → pas de"
+    - "Jamais de fièvre signalée. → jamais de"
+    - "Point de réaction inflammatoire. → point de"
+    - "Guère de preuves disponibles. → guère de"
+    - "Ni un seul cas rapporté. → ni un seul"
+    - "Aucun signe, pas de fièvre, jamais de toux. → aucun, pas de, jamais de"
+# ——————————————————————————————————————————————————————————————
+# B) Déterminant + adjectif différenciateur
+# ——————————————————————————————————————————————————————————————
+- id: DET_NEG_ADJ_DIFF
+  when_pattern: '\b(?P<det>aucun(?:e|s|es)?|nul(?:le|s|les)?)\s+(?:autre(?:s)?|différent(?:e)?s?|supplémentaire(?:s)?)\b'
+  cue_label: ["{det}"]
+  group: "determinant"
+  notes: >
+    Cas spécifique où le déterminant est suivi d’un adjectif de différenciation
+    (autre, différent, supplémentaire).
+    On annote uniquement le déterminant ("aucun"/"nul").
+    Si plusieurs occurrences sont présentes dans la phrase, elles sont toutes captées.
+    On ajoute un flag adj_diff pour signaler la structure.
+  options:
+    regex: true
+    case_insensitive: true
+    global: true
+    add_feature_flag: "adj_diff=1"
+    exclude_verbs_from_cue: true
+  examples:
+    - "Aucune autre anomalie. → aucune"
+    - "Nul autre signe. → nul"
+    - "Aucune autre anomalie, nul autre signe. → aucune, nul"
+    - "Aucune autre anomalie et aucune autre complication signalée. → aucune, aucune"
+    - "Nulle autre cause identifiée, nul autre facteur mis en évidence. → nulle, nul"
+    - "Aucun autre symptôme, aucune autre anomalie, nul autre signe. → aucun, aucune, nul"
+
+
+# ——————————————————————————————————————————————————————————————
+# C) Co-occurrence déterminant + "ne" verbal
+# ——————————————————————————————————————————————————————————————
+- id: DET_NEG_COOC_NE
+  when_pattern: >
+    \b(?P<det>aucun(?:e|s|es)?|nul(?:le|s|les)?|pas\s+d(?:e|’|'')|pas\s+un(?:e)?)\b\s+\b(?P<ne>n['’]?|ne)\b
+  cue_label: ["{det}", "{ne}"]
+  group: "determinant"
+  notes: >
+    Cas où le déterminant coexiste avec "ne" verbal.
+    On annote les deux termes comme cues distincts,
+    afin de gérer correctement le partage de scopes.
+    Si plusieurs déterminants ou "ne" apparaissent,
+    ils sont tous captés grâce à global.
+    Priorité au gap en tokens (max_token_gap: 8).
+    Le fallback caractères (40) n’est utilisé qu’en cas de segmentation défaillante.
+  options:
+    regex: true
+    case_insensitive: true
+    global: true
+    add_feature_flag: "cooc_ne=1"
+    exclude_verbs_from_cue: true
+    max_token_gap: 8
+    stop_punct: [".",";",":"]
+    fallback_char_gap: 40
+  examples:
+    - "Aucune récidive n’a été constatée. → aucune, n’"
+    - "Pas de récidive n’a été mise en évidence. → pas de, n’"
+    - "Aucun symptôme et aucune anomalie n’ont été signalés. → aucun, aucune, n’"
+
+# ——————————————————————————————————————————————————————————————
+# D) Double marqueur "sans + déterminant"
+# ——————————————————————————————————————————————————————————————
+- id: DET_NEG_DOUBLE_SANS
+  when_pattern: '\b(?P<sans>sans)\s+(?:\w+\s+){0,2}?(?P<det>aucun(?:e|s|es)?|nul(?:le|s|les)?)\b'
+  cue_label: ["{sans}", "{det}"]
+  group: "determinant"
+  notes: >
+    Double marqueur négatif : "sans" + déterminant ("aucun/aucune/aucuns/aucunes" ou "nul/nulle…").
+    Autorise l’insertion éventuelle d’adverbes ou modificateurs
+    ("sans absolument aucune preuve", "sans presque nul espoir").
+    ⚠️ Pour les cas disjoints longs ("sans qu’aucune…"), utiliser une règle co-occurrence spécifique.
+  options:
+    regex: true
+    case_insensitive: true
+    global: true
+    exclude_verbs_from_cue: true
+  examples:
+    - "Sans aucune anomalie. → sans, aucune"
+    - "Incision sans aucun pus. → sans, aucun"
+    - "Sans aucunes complications. → sans, aucunes"
+    - "Sans nul recours possible. → sans, nul"
+    - "Sans absolument aucune preuve. → sans, aucune"
+    - "Sans aucun signe et sans aucune anomalie. → sans, aucun, sans, aucune"
+
+
+# ——————————————————————————————————————————————————————————————
+# E) Déterminant renforcé : "pas le moindre / pas la moindre / pas le plus petit…"
+# ——————————————————————————————————————————————————————————————
+- id: DET_NEG_PAS_REINFORCED
+  when_pattern: >
+    \b(?P<pas>pas)\s+l[ea]\s+(?P<adj>moindre|plus\s+petit|plus\s+l[eé]ger|plus\s+faible|plus\s+infime)\b
+  cue_label: ["{pas}", "{adj}"]
+  group: "determinant"
+  notes: >
+    Tours renforcés équivalents à "aucun".
+    Exemples : "pas le moindre", "pas la moindre", "pas le plus petit",
+    "pas la plus légère", "pas le plus faible", "pas la plus infime".
+    Chaque occurrence est captée dynamiquement via {pas} et {adj}.
+    Si plusieurs renforçateurs apparaissent dans la même phrase,
+    ils sont tous détectés (global = true).
+  options:
+    regex: true
+    case_insensitive: true
+    global: true
+    exclude_verbs_from_cue: true
+  examples:
+    - "Pas le moindre signe d’infection. → pas, moindre"
+    - "Pas la moindre anomalie observée. → pas, moindre"
+    - "Pas le plus petit détail manquant. → pas, plus petit"
+    - "Pas la plus légère anomalie. → pas, plus légère"
+    - "Pas le plus faible espoir de succès. → pas, plus faible"
+    - "Pas la plus infime chance. → pas, plus infime"
+    - "Pas le moindre symptôme ni la plus légère anomalie. → pas, moindre, pas, plus légère"
+
+
+# ——————————————————————————————————————————————————————————————
+# F) Double détermination : "jamais aucun"
+# ——————————————————————————————————————————————————————————————
+- id: DET_NEG_JAMAIS_DET
+  when_pattern: >
+    \b(?P<jamais>jamais)\s+
+    (?P<det>
+      aucun(?:e|s|es)?|
+      nul(?:le|s|les)?|
+      pas\s+un(?:e)?\s+seul(?:e)?|
+      ni\s+un(?:e)?\s+seul(?:e)?|
+      point\s+de|
+      guère\s+d(?:e|’|'')
+    )
+  cue_label: ["{jamais}", "{det}"]
+  group: "determinant"
+  notes: >
+    Cas de double négation déterminante : "jamais" suivi d’un déterminant négatif.
+    - Couverture : aucun/aucune, nul/nulle, pas un seul, ni un seul, point de, guère de.
+    - Les deux termes sont porteurs de négation et doivent être annotés séparément.
+    - Si plusieurs occurrences apparaissent dans la phrase, elles sont toutes captées (global = true).
+  options:
+    regex: true
+    case_insensitive: true
+    global: true
+    exclude_verbs_from_cue: true
+  examples:
+    - "Jamais aucun symptôme rapporté. → jamais, aucun"
+    - "Jamais aucune anomalie constatée. → jamais, aucune"
+    - "Jamais nulle complication observée. → jamais, nulle"
+    - "Jamais pas un seul patient inclus. → jamais, pas un seul"
+    - "Jamais point de solution trouvée. → jamais, point de"
+    - "Jamais guère de preuves disponibles. → jamais, guère de"
+    - "Jamais aucun signe ni jamais aucune preuve. → jamais, aucun, jamais, aucune"
