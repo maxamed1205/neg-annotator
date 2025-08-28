@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 import argparse
 import json
@@ -115,8 +114,14 @@ def load_markers(rules_dir: Path) -> Dict[str, List[Dict[str, Any]]]:
                 clean_pattern = pat.replace('\n', ' ')
                 # 2. Réduire les espaces multiples en un seul espace (préserver les constructions regex comme \s+)
                 clean_pattern = re.sub(r'\s+', ' ', clean_pattern).strip()
-                # 3. Laisser les alternations telles quelles (pas de suppression supplémentaire)
-                
+                # 3. Normaliser les espaces autour des alternations et des parenthèses pour éviter
+                #    les tokens préfixés par des espaces causés par l'indentation YAML.
+                clean_pattern = re.sub(r'\s*\|\s*', '|', clean_pattern)
+                clean_pattern = re.sub(r'\(\s+', '(', clean_pattern)
+                clean_pattern = re.sub(r'\s+\)', ')', clean_pattern)
+                # 4. Enregistrer le pattern nettoyé
+                # Remove spaces that may remain after named-group closing '>' (e.g. '(?P<name> ') -> '(?P<name>')
+                clean_pattern = re.sub(r'>\s+', '>', clean_pattern)
                 flags = reg.IGNORECASE if rule.get("options",{}).get("case_insensitive") else 0
                 rule["_compiled"] = reg.compile(clean_pattern, flags)
                 rule["_clean_pattern"] = clean_pattern  # Garder le pattern nettoyé pour debug
@@ -339,31 +344,41 @@ def _extract_negation_markers_only(text: str, match, rule: Dict[str, Any]) -> Tu
     
     # Detect bipartite patterns: "ne/n' ... pas/plus/jamais/rien/personne/etc"
     # This regex finds the first negation particle and the second one, excluding verbs in between
-    bipartite_pattern = r"\b(n['']?|ne)\b.*?\b(pas|plus|jamais|rien|personne|guère|point|nul)\b"
+    # Accept both ASCII and typographic apostrophes and ensure we capture only the particle (n' or ne)
+    bipartite_pattern = r"(?:\bne\b|n['’]).*?\b(pas|plus|jamais|rien|personne|guère|point|nul)\b"
     bipartite_match = re.search(bipartite_pattern, match_text, re.IGNORECASE)
     
     if bipartite_match:
         # Extract the two particles separately, preserving their EXACT form from the text
-        part1_pattern = r"\b(n['']?|ne)\b"
+        part1_pattern = r"(?:\bne\b|n['’])"
         part2_pattern = r"\b(pas|plus|jamais|rien|personne|guère|point|nul)\b"
-        
+
         part1_match = re.search(part1_pattern, match_text, re.IGNORECASE)
         part2_match = re.search(part2_pattern, match_text, re.IGNORECASE)
-        
+
         if part1_match and part2_match:
             # IMPORTANT: Préserver la forme EXACTE trouvée dans le texte (n' vs ne)
-            part1_text = part1_match.group(0)  # group(0) pour garder la forme exacte
+            # Trim trailing verb if part1 is like "n'" followed by a verb capture
+            part1_text = part1_match.group(0)
+            # If part1 ends with an apostrophe, ensure only the particle is kept
+            if re.match(r"^n['’]", part1_text, re.IGNORECASE):
+                part1_text = re.match(r"^n['’]", part1_text, re.IGNORECASE).group(0)
             part2_text = part2_match.group(0)  # group(0) pour garder la forme exacte
-            
+
             # Create label with only negation particles (no verbs) but preserving exact forms
             cleaned_label = f"{part1_text} {part2_text}"
             
-            # Return positions of the full match but cleaned label
-            return cleaned_label, match_start, match_end
+            # Compute precise positions for the particles within the original text
+            p1_start = match_start + part1_match.start()
+            p1_end = match_start + part1_match.end()
+            p2_start = match_start + part2_match.start()
+            p2_end = match_start + part2_match.end()
+            # Return label and the span from start of part1 to end of part2
+            return cleaned_label, p1_start, p2_end
     
     # Single negation particles (non-bipartite)
     single_neg_patterns = [
-        r"\b(ne|n[''])\b",       # ne, n'
+        r"(?:\bne\b|n['’])",       # ne, n' (handle typographic apostrophe)
         r"\b(pas)\b",            # pas
         r"\b(plus)\b",           # plus
         r"\b(jamais)\b",         # jamais
@@ -693,6 +708,7 @@ def detect_bipartite_cross_tokens(text: str, tokens: List[Tuple[str,int,int]], e
                 continue
             # search ahead within max_tokens tokens (excluding punctuation tokens)
             gap = 0
+            paired = False
             # Si c'est une contraction "n" + "'", commencer la recherche après l'apostrophe
             start_search = i + 2 if (t == "n" and i + 1 < len(tokens) and tokens[i + 1][0] in ["'", "'"]) else i + 1
             
@@ -717,36 +733,37 @@ def detect_bipartite_cross_tokens(text: str, tokens: List[Tuple[str,int,int]], e
                         break
                     key = (rule.get("id"), a, b2)
                     if key not in existing_keys:
-                        # TOUJOURS exclure les verbes pour les bipartites (requis par l'utilisateur)
-                        # Extraire proprement les deux particules (part1, part2) en conservant
-                        # la forme exacte trouvée dans les tokens (guillemet droit ou typographique).
+                        # Found a valid pair: build pair cue
+                        # Extract tokens and preserve exact forms
                         part1_tok = tokens[i][0]
                         part2_tok = tokens[j][0]
 
-                        # Chercher la particule "n'" / "n’" / "ne" au début du token 1
-                        # prefer matching 'ne' before n' to avoid partial matches on tokens like 'ne'
-                        part1_match = re.match(r"(?i)^(ne|n['’]?)", part1_tok)
-                        if part1_match:
-                            part1_text = part1_match.group(0)
+                        # Rebuild part1_text and compute p1 spans (handle 'n' + apostrophe tokenization)
+                        if part1_tok == 'n' and i + 1 < len(tokens) and tokens[i + 1][0] in ["'", "’"]:
+                            part1_text = "n" + tokens[i + 1][0]
+                            p1_start = tokens[i][1]
+                            p1_end = tokens[i + 1][2]
                         else:
-                            # fallback: utiliser le token entier (rare)
-                            part1_text = part1_tok
+                            part1_match = re.match(r"(?i)^(ne|n['’]?)", part1_tok)
+                            if part1_match:
+                                part1_text = part1_match.group(0)
+                                p1_start = tokens[i][1] + part1_match.start()
+                                p1_end = tokens[i][1] + part1_match.end()
+                            else:
+                                part1_text = part1_tok
+                                p1_start = tokens[i][1]
+                                p1_end = tokens[i][2]
 
-                        # Chercher la particule de fermeture (pas|plus|jamais|...) au début du token 2
                         part2_match = re.match(r"(?i)^(pas|plus|jamais|rien|personne|guère|guere|point|nul)", part2_tok)
                         if part2_match:
                             part2_text = part2_match.group(0)
                         else:
                             part2_text = part2_tok
 
-                        # Construire le label en préservant la forme trouvée dans le texte source
-                        # Ne pas normaliser les apostrophes ici : on veut reprendre la forme
-                        # exacte présente dans la phrase source.
                         label = (part1_text + " " + part2_text).strip()
-                        # Pour les positions, utiliser le span complet mais le label ne contient que les particules
-                        cue_start = a  # Start of "ne/n'"
-                        cue_end = b2   # End of "pas/plus/etc" (full span for scope calculation)
-                        
+                        cue_start = a
+                        cue_end = b2
+
                         out.append({
                             "id": rule.get("id", "NE_BIPARTITE_EXTENDED"),
                             "cue_label": label,
@@ -758,7 +775,37 @@ def detect_bipartite_cross_tokens(text: str, tokens: List[Tuple[str,int,int]], e
                         used_part1_pos.add(a)
                         used_part2_pos.add(b2)
                     # once we've attempted a pairing for this part1 token, move to next part1
+                    paired = True
                     break
+            # if we scanned ahead and DID NOT pair this part1 with any part2, emit single-left particle
+            if not paired:
+                # compute part1_text and spans as above
+                part1_tok = tokens[i][0]
+                if part1_tok == 'n' and i + 1 < len(tokens) and tokens[i + 1][0] in ["'", "’"]:
+                    part1_text = "n" + tokens[i + 1][0]
+                    p1_start = tokens[i][1]
+                    p1_end = tokens[i + 1][2]
+                else:
+                    part1_match = re.match(r"(?i)^(ne|n['’]?)", part1_tok)
+                    if part1_match:
+                        part1_text = part1_match.group(0)
+                        p1_start = tokens[i][1] + part1_match.start()
+                        p1_end = tokens[i][1] + part1_match.end()
+                    else:
+                        part1_text = part1_tok
+                        p1_start = tokens[i][1]
+                        p1_end = tokens[i][2]
+                single_key = (rule.get("id"), p1_start, p1_end)
+                if single_key not in existing_keys and p1_start is not None:
+                    out.append({
+                        "id": rule.get("id", "NE_BIPARTITE_EXTENDED"),
+                        "cue_label": part1_text,
+                        "start": p1_start,
+                        "end": p1_end,
+                        "group": rule.get("group", "bipartite")
+                    })
+                # mark part1 as used so we don't emit again
+                used_part1_pos.add(a)
     return out
 
 # ----------------- contrat LLM -----------------

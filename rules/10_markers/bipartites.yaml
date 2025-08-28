@@ -1,4 +1,4 @@
-# ——————————————————————————————————————————————————————————————
+
 # A) Marqueurs bipartite de base
 # ——————————————————————————————————————————————————————————————
 - id: NE_BIPARTITE_EXTENDED
@@ -46,7 +46,7 @@
 # B) Ellipse verbale "ne + verbe" sans pas/plus/jamais/rien/personne
 # ——————————————————————————————————————————————————————————————
 - id: NE_ELLIPTIQUE_VERBAL
-  when_pattern: "(?i)(?P<part1>\\bn['’]|\\bne)\\s+\\w+"
+  when_pattern: "(?i)(?P<part1>\\bn[''][aàeiouèéêë]|\\bne)\\s+\\w+"
   cue_label: ["{part1}"]
   group: "bipartite"
   notes: >
