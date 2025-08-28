@@ -1,24 +1,34 @@
 {
   "id": 1,
-  "text": "Il n’a trouvé aucune anomalie.",
-
-  "candidates_rules_ID_cues": [
-    {"group": "bipartite", "rules": ["BIP_G_CORE", "BIP_G_COOC_DET_RESOLVE", "BIP_G_SUPPORT_AUTO"]},
-    {"group": "determinant", "rules": ["DET_G_CORE", "DET_G_SUPPORT_AUTO", "BIP_G_SUPPORT_AUTO"]}
-  ],
-
+  "text": "Le patient n’a signalé ni allergie médicamenteuse ni intolérance alimentaire récente.",
   "cues": [
-    {"id": "NE_BIPARTITE_EXTENDED", "cue_label": "n’", "start": 3, "end": 5, "group": "bipartite"},
-    {"id": "DET_NEG_GENERIQUE", "cue_label": "aucune", "start": 14, "end": 20, "group": "determinant"}
+    {"id":"NE_BIPARTITE_EXTENDED","cue_label":"n'","start":10,"end":12,"group":"bipartite"},
+    {"id":"NI_NI_COORD","cue_label":"ni","start":22,"end":24,"group":"conjonction"},
+    {"id":"NI_NI_COORD","cue_label":"ni","start":47,"end":49,"group":"conjonction"}
   ],
-
-  "candidates_rules_ID_scopes": [
-    {"group": "bipartite", "rules": ["BIP_G_COOC_DET_RESOLVE", "BIP_G_SUPPORT_AUTO", "BIP_G_CORE"]},
-    {"group": "determinant", "rules": ["DET_G_CORE", "DET_G_SUPPORT_AUTO", "BIP_G_SUPPORT_AUTO"]}
-  ],
-
   "scopes": [
-    {"id": "BIP_G_CORE", "scope": "anomalie", "start": 21, "end": 29},
-    {"id": "DET_G_CORE", "scope": "anomalie", "start": 21, "end": 29}
-  ]
+    {"id":"BIP_G_CORE","scope":"Le patient","start":0,"end":10},
+    {"id":"NI_NI_COORD","scope":"allergie médicamenteuse","start":25,"end":47},
+    {"id":"NI_NI_COORD","scope":"intolérance alimentaire récente","start":50,"end":84}
+  ],
+  "llm_contract": {
+    "mode":"permissive_mandatory_completion",
+    "...":"..."
+  }
+}
+{
+  "id": 2,
+  "text": "Hormis la toux résiduelle, l’état général n’est pas altéré.",
+  "cues": [
+    {"id":"PREP_HORMIS_BASE","cue_label":"hormis","start":0,"end":6,"group":"preposition"},
+    {"id":"NE_BIPARTITE_EXTENDED","cue_label":"n' pas","start":27,"end":35,"group":"bipartite"}
+  ],
+  "scopes": [
+    {"id":"PREP_GENERIC_CORE","scope":"la toux résiduelle","start":7,"end":25},
+    {"id":"BIP_G_CORE","scope":"l’état général altéré","start":26,"end":49}
+  ],
+  "llm_contract": {
+    "mode":"permissive_mandatory_completion",
+    "...":"..."
+  }
 }

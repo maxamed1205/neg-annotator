@@ -3,7 +3,6 @@
 # Une seule map 'routes_by_group'. Priorité la plus haute gagne.
 # ============================================================
 routes_by_group:
-
   conjonction:
     file: coordination.yaml
     strategies: [CONJ_NI_CORE, CONJ_NI_SUPPORT_AUTO, CONJ_NI_FALLBACK]
@@ -35,6 +34,6 @@ routes_by_group:
     priority: 42
 
   adversative:
-    file: 20_scopes/adversatives.yaml
+    file: 20_scopes/adversative.yaml
     strategies: [ADV_MAIS_RESTRICTIF]
     priority: 42

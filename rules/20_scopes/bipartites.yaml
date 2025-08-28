@@ -102,17 +102,18 @@
   fallback:
     strategy: "WINDOW_RIGHT_SMART"
     window_tokens: 8
-
-  guards:
-  deny_if_surface:
-    - pattern: "\bni\b"
-      options: { regex: true, case_insensitive: true }
+    reject_if_only_verb: true        # <-- nouveau
+    exclude_verbs_from_scope: true   # <-- idem
   deny_if_group_present:
     group: "preposition"
     labels: ["sans"]
     window_tokens: 8
     precedence: "higher"
   notes: >
+    Le fallback ne doit jamais produire une portée réduite au verbe seul.
+    - Si seule une forme verbale est capturée → rejeter.
+    - Si un verbe + GN → exclure le verbe et garder le GN.
+    - Objectif : toujours retourner un complément informatif plutôt qu’un verbe isolé.
     PRON_NEG_SUJET:
       - Par défaut: portée = prédicat complet.
       - Si le prédicat dépasse {pron_scope_max_tokens} tokens → fallback 'VP_MINIMAL_CORE':
