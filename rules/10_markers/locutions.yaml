@@ -6,7 +6,7 @@
 # A) Contrôle qualité
 # ——————————————————————————————————————————————————————————————
 - id: QC_MULTIPLE_CUES
-  when_pattern: "*"
+  when_pattern: "\\*"
   action: "VALIDATE_ALL_CUES_PRESENT"
   notes: >
     Vérifie que lorsqu’une phrase contient plusieurs marqueurs,

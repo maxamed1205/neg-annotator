@@ -9,11 +9,17 @@ Orchestrateur complet (VSCode Agent):
 
 import json
 import subprocess
+import sys
 from pathlib import Path
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.append(str(ROOT))
 from prompts.llm_prompt import build_llm_prompt
 
 # --- chemins ---
-ROOT = Path(r"C:\Users\maxam\Desktop\neg-annotator")
+# Détermine le dossier racine du projet de façon portable. Si tu exécutes ce
+# fichier via « python orchestrator.py … », ROOT correspondra au dossier parent
+# contenant « prompts » et « rules ».
+
 RULES = ROOT / "rules"
 DATA = ROOT / "data"
 PROMPTS = ROOT / "prompts"

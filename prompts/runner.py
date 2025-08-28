@@ -185,7 +185,27 @@ def load_registry_and_scopes(rules_dir: Path) -> Tuple[Dict[str, Dict[str, Any]]
 # ----------------- détection des cues (10_markers) -----------------
 
 def apply_marker_rule(rule: Dict[str,Any], text: str) -> List[Dict[str,Any]]:
+    """Apply a single marker rule to the input text and return a list of cue objects.
+
+    The rules defined in ``10_markers`` can be of different natures: some are pure
+    detection patterns (which should emit a cue when their ``when_pattern`` matches),
+    and some are quality‑control or guard rules (which are described by the ``action``
+    field or have an id starting with ``QC_``). QC rules do not correspond to
+    negation markers themselves; instead they instruct the LLM to perform a
+    validation or repair on the cues produced by the deterministic layer. If we
+    treat them like any other detection rule, they end up generating bogus cues
+    that cover the entire sentence or empty spans. To avoid polluting the cue
+    output, we simply skip any rule that declares an ``action`` or whose ``id``
+    starts with ``QC_``. These rules are forwarded to the LLM via
+    ``pending_rules`` but do not create cues here.
+    """
     out: List[Dict[str,Any]] = []
+    # -------------------------------------------------------------------------
+    # Skip QC/validation rules: they shouldn't emit cues. We detect them via
+    # the presence of an "action" field or an id starting with "QC_".
+    if rule.get("action") or (str(rule.get("id", "")).upper().startswith("QC_")):
+        return out
+
     pat = rule.get("_compiled")
     if not pat and not rule.get("when_pattern"):
         wm = rule.get("when_marker")
@@ -456,6 +476,67 @@ def dedup(spans: List[Dict[str,Any]]) -> List[Dict[str,Any]]:
         seen.add(key); out.append(s)
     return out
 
+# -----------------------------------------------------------------------------
+# Détection bipartite cross‑tokens
+# -----------------------------------------------------------------------------
+
+def detect_bipartite_cross_tokens(text: str, tokens: List[Tuple[str,int,int]], existing_cues: List[Dict[str,Any]], rule: Dict[str,Any]) -> List[Dict[str,Any]]:
+    """
+    Détecte les marqueurs bipartites de type « ne … pas » lorsque les deux
+    éléments sont séparés par un ou plusieurs tokens. La logique est guidée par
+    les options ``max_token_gap`` définies dans la règle YAML. Les listes des
+    particules de départ (part1) et de fin (part2) sont dérivées du YAML
+    (voir ``bipartites.yaml``) pour NE_BIPARTITE_EXTENDED.
+
+    :param text: la phrase brute
+    :param tokens: liste des tokens avec offsets
+    :param existing_cues: cues déjà détectés (pour éviter les doublons)
+    :param rule: la règle YAML correspondante (doit contenir options.max_token_gap)
+    :return: liste de nouvelles cues à ajouter
+    """
+    out = []
+    # Only apply if the rule declares a max_token_gap; otherwise the standard regex suffira.
+    max_tokens = rule.get("options", {}).get("max_token_gap")
+    if not max_tokens:
+        return out
+    try:
+        max_tokens = int(max_tokens)
+    except Exception:
+        max_tokens = 8
+    # Hard‑code the list of possible second parts; these mirror the YAML definition.
+    part1_set = {"ne", "n'", "n’"}
+    part2_set = {"pas", "plus", "jamais", "rien", "personne", "guère", "point", "nul"}
+    existing_keys = {(c.get("id"), c.get("start"), c.get("end")) for c in existing_cues}
+    for i, (tok, a, b) in enumerate(tokens):
+        t = tok.lower()
+        # un marqueur de début peut être "ne", ou bien un token débutant par "n'" ou "n’"
+        is_part1 = t == "ne" or t.startswith("n'") or t.startswith("n’")
+        if is_part1:
+            # search ahead within max_tokens tokens (excluding punctuation tokens)
+            gap = 0
+            for j in range(i+1, len(tokens)):
+                t2, a2, b2 = tokens[j]
+                # ignore pure punctuation tokens (e.g., commas). We consider them as gap but don't count them.
+                if re.match(PUNCT_RE, t2):
+                    continue
+                gap += 1
+                if gap > max_tokens:
+                    break
+                if t2.lower() in part2_set:
+                    # ensure we don't already have this cue
+                    key = (rule.get("id"), a, b2)
+                    if key not in existing_keys:
+                        label = normalize_spaces(tok + " " + t2)
+                        out.append({
+                            "id": rule.get("id", "NE_BIPARTITE_EXTENDED"),
+                            "cue_label": label,
+                            "start": a,
+                            "end": b2,
+                            "group": rule.get("group", "bipartite")
+                        })
+                    break
+    return out
+
 # ----------------- contrat LLM -----------------
 NEG_LEXEMES_HINTS = {
     "bipartite": ["ne","n’","n'","pas","plus","jamais","rien","personne","guère","point","nul"],
@@ -536,8 +617,31 @@ def annotate_sentence(text: str, sid: int, markers_by_group, strategies_by_id, o
     for g, rules in markers_by_group.items():
         for r in rules:
             cues.extend(apply_marker_rule(r, text))
-    # Compléter certains marqueurs surface (ex. « malgré ») s'ils manquent
+
+    # Détection additionnelle pour les marqueurs bipartites avec un écart de tokens (ne … pas, ne … plus, etc.).
+    # Certaines expressions comme « n'ont pas » ou « ne … jamais » contiennent un ou plusieurs
+    # tokens intermédiaires entre les deux parties du marqueur. Les motifs regex présents
+    # dans les YAML ne capturent que les cas contigus (« ne pas ») et ne tiennent pas compte
+    # des options « max_token_gap » définies dans les règles. Ici, nous reconstruisons ces
+    # marqueurs à partir des tokens lorsque la règle NE_BIPARTITE_EXTENDED est définie.
+    if "bipartite" in markers_by_group:
+        for r in markers_by_group["bipartite"]:
+            if r.get("id") == "NE_BIPARTITE_EXTENDED":
+                cues.extend(detect_bipartite_cross_tokens(text, tokens, cues, r))
+                break
+    # Compléter certains marqueurs surface (ex. « malgré ») s'ils manquent
     cues = inject_surface_markers(text, cues)
+    # Déduplication des cues : plusieurs règles peuvent détecter le même marqueur
+    # (ex. la préposition « sans » capturée par preposition.yaml et locutions.yaml).
+    # Afin de respecter le format « un cue = un seul id et un seul group », nous
+    # éliminons les doublons exacts sur (id, group, cue_label, start, end). Cela
+    # conserve un seul objet par occurrence et évite les répétitions dans la sortie.
+    unique_cues: Dict[tuple, Dict[str,Any]] = {}
+    for c in cues:
+        key = (c.get("id"), c.get("group"), c.get("cue_label"), c.get("start"), c.get("end"))
+        if key not in unique_cues:
+            unique_cues[key] = c
+    cues = list(unique_cues.values())
 
     groups_present = sorted({c["group"] for c in cues})
 

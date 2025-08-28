@@ -21,17 +21,17 @@ routes_by_group:
   locution:
     file: locutions.yaml
     strategies: [LOC_G_SKIP_NON_ASSERTIVE, LOC_G_CORE, LOC_G_SUPPORT_AUTO, LOC_G_FALLBACK]
-    priority: 44
+    priority: 45
 
   lexical:
     file: lexical.yaml
     strategies: [LEX_G_SKIP_LEXICALIZED, LEX_G_CORE, LEX_G_NEGATE_DIAG, LEX_G_SUPPORT_AUTO]
-    priority: 43
+    priority: 44
 
   determinant:
     file: determinant.yaml
     strategies: [DET_G_CORE, DET_G_SUPPORT_AUTO]
-    priority: 42
+    priority: 43
 
   adversative:
     file: 20_scopes/adversative.yaml

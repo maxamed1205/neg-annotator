@@ -60,7 +60,14 @@ def load_rules_for_groups(rules_dir: Path, groups: list[str]) -> dict:
 
 
 def build_llm_prompt(obj: dict, rules_dir: str) -> tuple[str, str]:
-    groups = sorted({c["group"] for c in obj.get("cues", [])})
+    all_groups = []
+    for c in obj.get("cues", []):
+        if isinstance(c["group"], list):
+            all_groups.extend(c["group"])
+        else:
+            all_groups.append(c["group"])
+
+    groups = sorted(set(all_groups))
     rules_full = load_rules_for_groups(Path(rules_dir), groups)
 
     slim = {
