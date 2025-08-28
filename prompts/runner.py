@@ -1,82 +1,3 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-"""
-Runner permissif v3 — 100% sans spaCy (full‑regex + tokenisation maison)
-
-Ce build aligne la sortie sur le pipeline que tu demandes :
-- Étape 1 (déterministe) : cues + scopes via règles YAML et stratégies surface.
-- Étape 2 (LLM actions) : dicté par un contrat OBLIGATOIRE.
-- Étape 3 (LLM ajouts) : champ "LLM_ajouts" réservé pour les compléments (sujet, supports, cues manquants),
-  à remplir côté orchestrateur.
-
-Diffs clés vs version précédente :
-- Ajout d'un coupeur lexical (stop_lexemes) pour couper la portée bipartite avant les concessives (ex. « malgré    for i, (tok, a,     for i, (tok, a, b) in    for i, (tok,         is_part1 = t == "ne" or t.startswith("n'") or t.startswith("n'")
-        if is_part1:
-            # Déterminer le token de contraction et ses positions
-            if t == "ne":
-                contraction_token = "ne"
-                contraction_start = a
-            else:
-                # Pour les contractions comme "n'ont", garder seulement "n'"
-                contraction_token = t[:2]  # "n'" or "n'"
-                contraction_start = a
-            
-            # search ahead within max_tokens tokens (excluding punctuation tokens)b) in enumerate(tokens):
-        t = tok.lower()
-        # un marqueur de début peut être "ne", ou bien un token débutant par "n'" ou "n'"
-        # Gérer aussi les contractions séparées par le tokeniseur: "n" + "'"
-        is_part1 = t == "ne" or t.startswith("n'") or t.startswith("n'")
-        
-        # Gérer le cas où "n'" est tokenisé en "n" + "'"
-        contraction_start = a
-        contraction_token = tok
-        if t == "n" and i + 1 < len(tokens) and tokens[i + 1][0] in ["'", "'"]:
-            is_part1 = True
-            contraction_token = "n'"  # Reconstruire la contraction
-            contraction_start = a
-            
-        if is_part1:erate(tokens):
-        t = tok.lower()
-        # un marqueur de début peut être "ne", ou bien un token débutant par "n'" ou "n'"
-        # Gérer aussi les contractions séparées par le tokeniseur: "n" + "'"
-        is_part1 = t == "ne" or t.startswith("n'") or t.startswith("n'")
-        
-        # Gérer le cas où "n'" est tokenisé en "n" + "'"
-        contraction_end = b
-        if t == "n" and i + 1 < len(tokens) and tokens[i + 1][0] in ["'", "'"]:
-            is_part1 = True
-            contraction_end = tokens[i + 1][2]  # End of apostrophe
-            
-        if is_part1: enumerate(tokens):
-        t = tok.lower()
-        print(f"[DEBUG] Checking token {i}: '{tok}' ('{t}')")
-        # un marqueur de début peut être "ne", ou bien un token débutant par "n'" ou "n'"
-        # Gérer aussi les contractions séparées par le tokeniseur: "n" + "'"
-        is_part1 = t == "ne" or t.startswith("n'") or t.startswith("n'")
-        
-        # Gérer le cas où "n'" est tokenisé en "n" + "'"
-        contraction_end = b
-        if t == "n" and i + 1 < len(tokens) and tokens[i + 1][0] in ["'", "'"]:
-            is_part1 = True
-            contraction_end = tokens[i + 1][2]  # End of apostrophe
-            print(f"[DEBUG] Found contraction: n + {tokens[i + 1][0]}")
-            
-        print(f"[DEBUG] is_part1: {is_part1}")
-        if is_part1: mais »).
-- Pré-détection déterministe de certaines prépositions concessives fréquentes (ex. « malgré ») si absentes des 10_markers.
-- Stratégie préposition générique : PREP_GENERIC_CORE (utilisée pour PREP_SANS_CORE, PREP_MALGRÉ_CORE, etc.).
-- Contrat LLM renforcé : MUST_COMPLETE_MISSING + rules_obligations (require_subject / require_support / require_cue_completion).
-- Sortie enrichie : pipeline_step et placeholder LLM_ajouts.
-
-Dépendances :
-    pip install pyyaml regex
-
-Entrées :
-  --rules   : dossier racine contenant 10_markers/ et 20_scopes/
-  --input   : fichier texte (1 phrase par ligne)
-  --output  : JSONL intermédiaire
-  --mode    : strict | permissive  (permissive = MUST_COMPLETE_MISSING)
-"""
 
 from __future__ import annotations
 import argparse
@@ -320,8 +241,10 @@ def apply_marker_rule(rule: Dict[str,Any], text: str) -> List[Dict[str,Any]]:
             logging.debug(f"Excluded verbs from cue for rule {rule.get('id')}: '{span_text}' at {start_pos}-{end_pos}")
         
         label = _format_cue_label(rule.get("cue_label"), m)
-        if exclude_verbs and not label:
+        if exclude_verbs:
+            # Quand on exclut les verbes, utiliser TOUJOURS span_text et ignorer le label du YAML
             label = span_text
+            logging.debug(f"Forcing cue label to span_text for verb exclusion: '{label}'")
             
         cue = {
             "id": rule.get("id","UNK_RULE"),
@@ -362,7 +285,7 @@ def _extract_negation_markers_only(text: str, match, rule: Dict[str, Any]) -> Tu
     bipartite_match = re.search(bipartite_pattern, match_text, re.IGNORECASE)
     
     if bipartite_match:
-        # Extract the two particles separately
+        # Extract the two particles separately, preserving their EXACT form from the text
         part1_pattern = r"\b(n['']?|ne)\b"
         part2_pattern = r"\b(pas|plus|jamais|rien|personne|guère|point|nul)\b"
         
@@ -370,10 +293,11 @@ def _extract_negation_markers_only(text: str, match, rule: Dict[str, Any]) -> Tu
         part2_match = re.search(part2_pattern, match_text, re.IGNORECASE)
         
         if part1_match and part2_match:
-            part1_text = part1_match.group(1)
-            part2_text = part2_match.group(1)
+            # IMPORTANT: Préserver la forme EXACTE trouvée dans le texte (n' vs ne)
+            part1_text = part1_match.group(0)  # group(0) pour garder la forme exacte
+            part2_text = part2_match.group(0)  # group(0) pour garder la forme exacte
             
-            # Create label with only negation particles (no verbs)
+            # Create label with only negation particles (no verbs) but preserving exact forms
             cleaned_label = f"{part1_text} {part2_text}"
             
             # Return positions of the full match but cleaned label
@@ -400,10 +324,11 @@ def _extract_negation_markers_only(text: str, match, rule: Dict[str, Any]) -> Tu
     for pattern in single_neg_patterns:
         single_match = re.search(pattern, match_text, re.IGNORECASE)
         if single_match:
-            particle_text = single_match.group(1)
+            # IMPORTANT: Préserver la forme EXACTE trouvée dans le texte
+            particle_text = single_match.group(0)  # group(0) pour garder la forme exacte
             # For single particles, use their exact position within the match
-            particle_start = match_start + single_match.start(1)
-            particle_end = match_start + single_match.end(1)
+            particle_start = match_start + single_match.start()
+            particle_end = match_start + single_match.end()
             return particle_text, particle_start, particle_end
     
     # Fallback: if no recognizable negation particles found, return original
@@ -681,7 +606,9 @@ def detect_bipartite_cross_tokens(text: str, tokens: List[Tuple[str,int,int]], e
     out = []
     # Only apply if the rule declares a max_token_gap; otherwise the standard regex suffira.
     max_tokens = rule.get("options", {}).get("max_token_gap")
+    print(f"DEBUG: max_tokens from rule = {max_tokens}")
     if not max_tokens:
+        print("DEBUG: No max_token_gap, returning empty")
         return out
     try:
         max_tokens = int(max_tokens)
@@ -715,8 +642,30 @@ def detect_bipartite_cross_tokens(text: str, tokens: List[Tuple[str,int,int]], e
                     key = (rule.get("id"), a, b2)
                     if key not in existing_keys:
                         # TOUJOURS exclure les verbes pour les bipartites (requis par l'utilisateur)
-                        # Créer un label avec seulement les particules de négation
-                        label = normalize_spaces(t[:2] + " " + t2) if t.startswith("n'") or t.startswith("n'") else normalize_spaces("ne " + t2)
+                        # Extraire proprement les deux particules (part1, part2) en conservant
+                        # la forme exacte trouvée dans les tokens (guillemet droit ou typographique).
+                        part1_tok = tokens[i][0]
+                        part2_tok = tokens[j][0]
+
+                        # Chercher la particule "n'" / "n’" / "ne" au début du token 1
+                        part1_match = re.match(r"(?i)^(n['’]?|ne)", part1_tok)
+                        if part1_match:
+                            part1_text = part1_match.group(0)
+                        else:
+                            # fallback: utiliser le token entier (rare)
+                            part1_text = part1_tok
+
+                        # Chercher la particule de fermeture (pas|plus|jamais|...) au début du token 2
+                        part2_match = re.match(r"(?i)^(pas|plus|jamais|rien|personne|guère|guere|point|nul)", part2_tok)
+                        if part2_match:
+                            part2_text = part2_match.group(0)
+                        else:
+                            part2_text = part2_tok
+
+                        # Construire le label en préservant la forme trouvée dans le texte source
+                        # Ne pas normaliser les apostrophes ici : on veut reprendre la forme
+                        # exacte présente dans la phrase source.
+                        label = (part1_text + " " + part2_text).strip()
                         # Pour les positions, utiliser le span complet mais le label ne contient que les particules
                         cue_start = a  # Start of "ne/n'"
                         cue_end = b2   # End of "pas/plus/etc" (full span for scope calculation)
