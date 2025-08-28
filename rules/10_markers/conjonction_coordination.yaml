@@ -29,8 +29,8 @@
 - id: NI_COMBINAISONS
   when_pattern: >
     (?P<first>
-      pas\s+d(?:e|u|’|'')\s+[^,;:.]+?
-      |sans\s+[^,;:.]+?
+      pas\s+d(?:e|u|’|'')\s+[^.]+?
+      |sans\s+[^.]+?
       |aucun|aucune|aucuns|aucunes
       |nul|nulle|nuls|nulles
       |jamais

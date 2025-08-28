@@ -111,12 +111,11 @@ def load_markers(rules_dir: Path) -> Dict[str, List[Dict[str, Any]]]:
             pat = rule.get("when_pattern")
             if pat:
                 # Nettoyer le pattern YAML avant compilation - méthode plus robuste
-                # 1. Supprimer tous les retours à la ligne
-                clean_pattern = pat.replace('\n', '')
-                # 2. Normaliser les espaces multiples mais préserver les \s dans regex
-                clean_pattern = re.sub(r'(?<!\\)\s+', '', clean_pattern)
-                # 3. Remettre des espaces autour des | si nécessaire
-                clean_pattern = re.sub(r'\|', '|', clean_pattern)
+                # 1. Remplacer les retours à la ligne par un espace (préserver la séparation des tokens)
+                clean_pattern = pat.replace('\n', ' ')
+                # 2. Réduire les espaces multiples en un seul espace (préserver les constructions regex comme \s+)
+                clean_pattern = re.sub(r'\s+', ' ', clean_pattern).strip()
+                # 3. Laisser les alternations telles quelles (pas de suppression supplémentaire)
                 
                 flags = reg.IGNORECASE if rule.get("options",{}).get("case_insensitive") else 0
                 rule["_compiled"] = reg.compile(clean_pattern, flags)
@@ -214,33 +213,92 @@ def apply_marker_rule(rule: Dict[str,Any], text: str) -> List[Dict[str,Any]]:
             logging.error(f"Failed to compile pattern for rule {rule.get('id')}: {rule.get('when_pattern')} - Error: {e}")
             return out
     
-    logging.debug(f"Searching for pattern in text: '{text}' with compiled pattern: {pat.pattern}")
+    # Normalize typographic apostrophes for matching only (preserve original text for labels)
+    text_for_match = text.replace("’", "'").replace("\u2019", "'")
+    logging.debug(f"Searching for pattern in normalized text: '{text_for_match}' with compiled pattern: {pat.pattern}")
     matches_found = 0
-    for m in pat.finditer(text):
+    for m in pat.finditer(text_for_match):
         matches_found += 1
-        logging.debug(f"Found match for rule {rule.get('id')}: {m.group()} at position {m.start()}-{m.end()}")
-        if _guard_hits(rule, text, m):
+        matched = m.group()
+        logging.debug(f"Found match for rule {rule.get('id')} (normalized): {matched} at position {m.start()}-{m.end()}")
+        # Map match positions from normalized text back to original text
+        # Strategy: locate the matched substring in the original text near the normalized index
+        approx_start = m.start()
+        # compute a search window in original text around approx_start
+        window_start = max(0, approx_start - 40)
+        window_end = min(len(text), approx_start + 40 + len(matched))
+        window = text[window_start:window_end]
+        # try to find matched substring in window (allowing different apostrophe forms)
+        alt_matched = matched.replace("'", "['’]")
+        try:
+            finder = re.search(re.escape(matched).replace("\\'", "'") , window)
+        except Exception:
+            finder = None
+        if finder:
+            orig_start = window_start + finder.start()
+            orig_end = window_start + finder.end()
+        else:
+            # fallback: map by length near approx_start
+            orig_start = min(len(text), max(0, approx_start))
+            orig_end = min(len(text), orig_start + len(matched))
+        logging.debug(f"Mapped normalized match to original text positions: {orig_start}-{orig_end} -> '{text[orig_start:orig_end]}'")
+        # Recreate a fake match object-like minimal interface for guard and extraction functions
+        class _FakeMatch:
+            def __init__(self, s, e, g, orig_match=None):
+                # s,e : start/end in original text
+                # g : matched text (original span)
+                # orig_match : optional original regex match object from normalized text
+                self._s = s
+                self._e = e
+                self._g = g
+                self._orig = orig_match
+            def start(self):
+                return self._s
+            def end(self):
+                return self._e
+            def group(self, *args):
+                # behave like real match.group: if original match available delegate
+                if self._orig is not None:
+                    try:
+                        return self._orig.group(*args)
+                    except Exception:
+                        pass
+                if not args:
+                    return self._g
+                # support group(0) or group(1) by returning full match for 0 or g for any
+                if args[0] == 0:
+                    return self._g
+                return self._g
+            def groupdict(self, default=None):
+                if self._orig is not None:
+                    try:
+                        return self._orig.groupdict(default=default)
+                    except Exception:
+                        return {}
+                return {}
+        fake_m = _FakeMatch(orig_start, orig_end, text[orig_start:orig_end])
+        if _guard_hits(rule, text, fake_m):
             logging.debug(f"Match blocked by guards for rule {rule.get('id')}")
             continue
         
         # Handle exclude_verbs_from_cue option
-        start_pos = m.start()
-        end_pos = m.end()
+        start_pos = fake_m.start()
+        end_pos = fake_m.end()
         span_text = text[start_pos:end_pos]
-        
+
         # TOUJOURS exclure les verbes pour les marqueurs bipartites (requis par l'utilisateur)
         exclude_verbs = rule.get("options", {}).get("exclude_verbs_from_cue", False)
-        
+
         # Force l'exclusion des verbes pour TOUS les groupes bipartites
         if rule.get("group") == "bipartite":
             exclude_verbs = True
-        
+
         if exclude_verbs:
             # Extract only negation markers, excluding verbs
-            span_text, start_pos, end_pos = _extract_negation_markers_only(text, m, rule)
+            span_text, start_pos, end_pos = _extract_negation_markers_only(text, fake_m, rule)
             logging.debug(f"Excluded verbs from cue for rule {rule.get('id')}: '{span_text}' at {start_pos}-{end_pos}")
-        
-        label = _format_cue_label(rule.get("cue_label"), m)
+
+        label = _format_cue_label(rule.get("cue_label"), fake_m)
         if exclude_verbs:
             # Quand on exclut les verbes, utiliser TOUJOURS span_text et ignorer le label du YAML
             label = span_text
@@ -442,23 +500,22 @@ def exec_strategy(group: str, sid: str, strat: Dict[str,Any], text: str, tokens,
 
     # === NEP_SMART (bipartite core) ===
     if stype == "NEP_SMART" or (sid.endswith("_CORE") and group=="bipartite"):
+        # Fallback deterministic bipartite scope extraction (sans LLM):
+        # On prend une fenêtre à droite (window_right) en respectant les tokens
+        # et la ponctuation configurée dans la règle YAML.
         out = []
+        max_tokens = int((strat.get("options") or {}).get("max_token_gap", 8))
+        stop_punct = (strat.get("options") or {}).get("stop_punct") or DEFAULT_STOP_PUNCT
+        stop_lexemes = (strat.get("options") or {}).get("stop_lexemes") or DEFAULT_STOP_LEXEMES
         for c in cues_for_group:
-            out.append({
-                "id": sid if sid else "BIP_G_CORE",
-                "scope": "<LLM_APPLY_RULE>",   # placeholder, scope final attendu du LLM
-                "start": c["end"],
-                "end": -1,
-                "llm_instruction": {
-                    "policy": "READ_AND_APPLY_RULE",
-                    "rule_id": sid,
-                    "rule_yaml": strat,   # dump complet de la règle YAML
-                    "cue": c,
-                    "text": text,
-                    "notes": "Relis la règle YAML, écris la règle, applique-la au cue pour générer le scope correct. Respecte start/end."
-                }
-            })
-        return out
+            a,b = window_right(tokens, c["end"], max_tokens, stop_punct, stop_lexemes)
+            if a == -1:
+                # If we can't extract a right window, leave placeholder empty scope
+                out.append({"id": sid if sid else "BIP_G_CORE", "scope": "", "start": -1, "end": -1})
+                continue
+            span = normalize_spaces(text[a:b])
+            out.append({"id": sid if sid else "BIP_G_CORE", "scope": span, "start": a, "end": b})
+        return dedup(out)
 
 
     # === DET_NEG_GN_SMART (determinant core) ===
@@ -618,20 +675,36 @@ def detect_bipartite_cross_tokens(text: str, tokens: List[Tuple[str,int,int]], e
     part1_set = {"ne", "n'", "n’"}
     part2_set = {"pas", "plus", "jamais", "rien", "personne", "guère", "point", "nul"}
     existing_keys = {(c.get("id"), c.get("start"), c.get("end")) for c in existing_cues}
+    used_part1_pos = set()
+    used_part2_pos = set()
     for i, (tok, a, b) in enumerate(tokens):
         t = tok.lower()
-        # un marqueur de début peut être "ne", ou bien un token débutant par "n'" ou "n’"
-        is_part1 = t == "ne" or t.startswith("n'") or t.startswith("n’")
+        # un marqueur de début peut être "ne", ou bien un token débutant par "n'" ou "n’",
+        # ou bien le token isolé "n" suivi d'un token apostrophe (tokenization split: 'n', "'")
+        is_part1 = (
+            t == "ne"
+            or t.startswith("n'")
+            or t.startswith("n’")
+            or (t == "n" and i + 1 < len(tokens) and tokens[i + 1][0] in ["'", "’"])
+        )
         if is_part1:
+            # skip if this part1 token was already used to form a pair
+            if a in used_part1_pos:
+                continue
             # search ahead within max_tokens tokens (excluding punctuation tokens)
             gap = 0
             # Si c'est une contraction "n" + "'", commencer la recherche après l'apostrophe
             start_search = i + 2 if (t == "n" and i + 1 < len(tokens) and tokens[i + 1][0] in ["'", "'"]) else i + 1
             
+            # determine stop punctuation for this rule (fallback to default)
+            stop_punct = set((rule.get('options') or {}).get('stop_punct') or DEFAULT_STOP_PUNCT)
             for j in range(start_search, len(tokens)):
                 t2, a2, b2 = tokens[j]
-                # ignore pure punctuation tokens (e.g., commas). We consider them as gap but don't count them.
+                # If token is punctuation and in configured stop_punct, stop searching further
                 if re.match(PUNCT_RE, t2):
+                    if t2 in stop_punct:
+                        break
+                    # otherwise ignore it but don't count as gap
                     continue
                 gap += 1
                 if gap > max_tokens:
@@ -639,6 +712,9 @@ def detect_bipartite_cross_tokens(text: str, tokens: List[Tuple[str,int,int]], e
                 if t2.lower() in part2_set:
                     # ensure we don't already have this cue
                     # Forme la clé avec les vraies positions 
+                    # skip if this part2 token was already used
+                    if b2 in used_part2_pos:
+                        break
                     key = (rule.get("id"), a, b2)
                     if key not in existing_keys:
                         # TOUJOURS exclure les verbes pour les bipartites (requis par l'utilisateur)
@@ -648,7 +724,8 @@ def detect_bipartite_cross_tokens(text: str, tokens: List[Tuple[str,int,int]], e
                         part2_tok = tokens[j][0]
 
                         # Chercher la particule "n'" / "n’" / "ne" au début du token 1
-                        part1_match = re.match(r"(?i)^(n['’]?|ne)", part1_tok)
+                        # prefer matching 'ne' before n' to avoid partial matches on tokens like 'ne'
+                        part1_match = re.match(r"(?i)^(ne|n['’]?)", part1_tok)
                         if part1_match:
                             part1_text = part1_match.group(0)
                         else:
@@ -677,63 +754,20 @@ def detect_bipartite_cross_tokens(text: str, tokens: List[Tuple[str,int,int]], e
                             "end": cue_end,
                             "group": rule.get("group", "bipartite")
                         })
+                        # mark these token spans as used so we don't re-pair them
+                        used_part1_pos.add(a)
+                        used_part2_pos.add(b2)
+                    # once we've attempted a pairing for this part1 token, move to next part1
                     break
     return out
 
 # ----------------- contrat LLM -----------------
-NEG_LEXEMES_HINTS = {
-    "bipartite": ["ne","n’","n'","pas","plus","jamais","rien","personne","guère","point","nul"],
-    "determinant": ["aucun","aucune","aucuns","aucunes","pas de","pas d’","pas d'"],
-    "preposition": ["sans","hors de","en dehors de","malgré"],
-    "conjonction": ["ni"],
-    "lexical": ["non","inefficace","impossible","absent","absence","nul","nulle"],
-    "locution": ["à l’exception de","à l'exclusion de","privation de","faute de"],
-    "adversative": ["mais"],
-}
+# LLM-related hints removed for deterministic-only mode.
 
 
 def make_llm_contract(mode: str, text: str, cues: List[Dict[str,Any]]) -> Dict[str,Any]:
-    if mode=="strict":
-        return {"mode":"strict"}
-    found_texts = {c["cue_label"].lower() for c in cues}
-    tlow = text.lower()
-    hints=[]
-    missing_groups=[]
-    for g, lex in NEG_LEXEMES_HINTS.items():
-        present=False
-        for w in lex:
-            if w.lower() in tlow:
-                present=True
-                if w.lower() not in found_texts:
-                    hints.append({"group": g, "lexeme": w})
-        if present and g not in {c["group"] for c in cues}:
-            missing_groups.append(g)
-    policy=(
-        "MUST_COMPLETE_MISSING: Tu DOIS compléter tout sujet, support ET tout marqueur manquant "
-        "en respectant les règles YAML. "
-        "Exécute aussi toutes les pending_rules fournies : relis la règle, écris la règle et applique-la au cue."
-        
-        "MUST_COMPLETE_MISSING: Tu DOIS compléter tout sujet, support ET tout marqueur manquant en respectant les règles YAML. "
-        "Priorité absolue aux candidats du runner. Si un lexème/structure indique une négation non couverte, "
-        "ajoute-la avec id='LLM_FALLBACK' et group='inference', puis calcule la portée avec les mêmes stratégies. "
-        "Fusionne les scopes identiques. Respecte strictement le schéma de sortie."
-    )
-    rules_obligations = [
-        {"id":"BIP_G_CORE","require_subject": True, "description":"Inclure le sujet grammatical dans une portée distincte."},
-        {"id":"GOVERNOR_SUPPORT_AUTO","require_support": True, "description":"Inclure les entités de support normatives (selon, d’après, etc.)."},
-        {"id":"ALL_MARKERS","require_cue_completion": True, "description":"Compléter les marqueurs manquants si un lexème connu apparaît, même si redondant."},
-    ]
-    fallback_schema={
-        "cue": {"id":"LLM_FALLBACK","group":"inference","cue_label":"<forme canonique>","start":-1,"end":-1},
-        "scope": {"id":"<STRATEGY_ID>","scope":"<texte>","start":-1,"end":-1}
-    }
-    return {
-        "mode":"permissive_mandatory_completion",
-        "policy":policy,
-        "rules_obligations": rules_obligations,
-        "hints":{"lexeme_hits":hints,"missing_groups":missing_groups},
-        "fallback_schema":fallback_schema
-    }
+    # Deterministic-only contract: no LLM instructions or hints.
+    return {"mode": "deterministic"}
 
 # ----------------- builders -----------------
 
@@ -807,12 +841,8 @@ def annotate_sentence(text: str, sid: int, markers_by_group, strategies_by_id, o
     all_scopes = [s for L in group_scopes.values() for s in L]
     all_scopes = apply_qc(all_scopes, text)
 
-    # ➕ Nouveau : collecter les instructions LLM
+    # LLM instructions removed in deterministic-only mode: ensure no pending list
     pending = []
-    for s in all_scopes:
-        if "llm_instruction" in s:
-            pending.append(s["llm_instruction"])
-            del s["llm_instruction"]   # on ne garde pas dans scopes
 
     # 4) objet final (Étape 1)
     obj = {
@@ -829,10 +859,7 @@ def annotate_sentence(text: str, sid: int, markers_by_group, strategies_by_id, o
             for s in all_scopes
         ],
         # 🔥 Ici on fusionne avec make_llm_contract
-        "llm_contract": {
-            **make_llm_contract(mode, text, cues),
-            "pending_rules": pending
-        },
+    "llm_contract": make_llm_contract(mode, text, cues),
         "LLM_actions": [],
         "LLM_ajouts": {"cues": [], "scopes": []}
     }

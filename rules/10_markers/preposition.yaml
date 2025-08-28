@@ -21,8 +21,8 @@
       |manque
       |sauf
       |peine
-      |charge
-    )(?=\s+(de|d[’']))
+    |charge
+    )
   cue_label: ["{prep}"]
   group: "preposition"
   notes: >
