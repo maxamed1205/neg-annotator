@@ -10,7 +10,59 @@ Ce build aligne la sortie sur le pipeline que tu demandes :
   à remplir côté orchestrateur.
 
 Diffs clés vs version précédente :
-- Ajout d'un coupeur lexical (stop_lexemes) pour couper la portée bipartite avant les concessives (ex. « malgré », « mais »).
+- Ajout d'un coupeur lexical (stop_lexemes) pour couper la portée bipartite avant les concessives (ex. « malgré    for i, (tok, a,     for i, (tok, a, b) in    for i, (tok,         is_part1 = t == "ne" or t.startswith("n'") or t.startswith("n'")
+        if is_part1:
+            # Déterminer le token de contraction et ses positions
+            if t == "ne":
+                contraction_token = "ne"
+                contraction_start = a
+            else:
+                # Pour les contractions comme "n'ont", garder seulement "n'"
+                contraction_token = t[:2]  # "n'" or "n'"
+                contraction_start = a
+            
+            # search ahead within max_tokens tokens (excluding punctuation tokens)b) in enumerate(tokens):
+        t = tok.lower()
+        # un marqueur de début peut être "ne", ou bien un token débutant par "n'" ou "n'"
+        # Gérer aussi les contractions séparées par le tokeniseur: "n" + "'"
+        is_part1 = t == "ne" or t.startswith("n'") or t.startswith("n'")
+        
+        # Gérer le cas où "n'" est tokenisé en "n" + "'"
+        contraction_start = a
+        contraction_token = tok
+        if t == "n" and i + 1 < len(tokens) and tokens[i + 1][0] in ["'", "'"]:
+            is_part1 = True
+            contraction_token = "n'"  # Reconstruire la contraction
+            contraction_start = a
+            
+        if is_part1:erate(tokens):
+        t = tok.lower()
+        # un marqueur de début peut être "ne", ou bien un token débutant par "n'" ou "n'"
+        # Gérer aussi les contractions séparées par le tokeniseur: "n" + "'"
+        is_part1 = t == "ne" or t.startswith("n'") or t.startswith("n'")
+        
+        # Gérer le cas où "n'" est tokenisé en "n" + "'"
+        contraction_end = b
+        if t == "n" and i + 1 < len(tokens) and tokens[i + 1][0] in ["'", "'"]:
+            is_part1 = True
+            contraction_end = tokens[i + 1][2]  # End of apostrophe
+            
+        if is_part1: enumerate(tokens):
+        t = tok.lower()
+        print(f"[DEBUG] Checking token {i}: '{tok}' ('{t}')")
+        # un marqueur de début peut être "ne", ou bien un token débutant par "n'" ou "n'"
+        # Gérer aussi les contractions séparées par le tokeniseur: "n" + "'"
+        is_part1 = t == "ne" or t.startswith("n'") or t.startswith("n'")
+        
+        # Gérer le cas où "n'" est tokenisé en "n" + "'"
+        contraction_end = b
+        if t == "n" and i + 1 < len(tokens) and tokens[i + 1][0] in ["'", "'"]:
+            is_part1 = True
+            contraction_end = tokens[i + 1][2]  # End of apostrophe
+            print(f"[DEBUG] Found contraction: n + {tokens[i + 1][0]}")
+            
+        print(f"[DEBUG] is_part1: {is_part1}")
+        if is_part1: mais »).
 - Pré-détection déterministe de certaines prépositions concessives fréquentes (ex. « malgré ») si absentes des 10_markers.
 - Stratégie préposition générique : PREP_GENERIC_CORE (utilisée pour PREP_SANS_CORE, PREP_MALGRÉ_CORE, etc.).
 - Contrat LLM renforcé : MUST_COMPLETE_MISSING + rules_obligations (require_subject / require_support / require_cue_completion).
@@ -49,7 +101,7 @@ log = make_logger()
 PUNCT_RE = r"[,;:!?\.()\[\]{}«»“”\"']"
 STOPWORDS = {"de","du","des","d'","d’","la","le","les","un","une","et","ou","à","au","aux","en","dans","sur","pour","par","avec","sans","que","ne","n’","n'","pas","plus","jamais","rien","personne","guère","point","aucun","aucune"}
 
-DEFAULT_STOP_PUNCT = [",",";",":",".","!","?",")","]","}" ]
+DEFAULT_STOP_PUNCT = [",",";",":",".","!","?",""]   # Correction ici
 # Lexèmes qui coupent naturellement une portée (concessives/mais)
 DEFAULT_STOP_LEXEMES = ["malgré","mais","cependant","pourtant","toutefois","néanmoins"]
 
@@ -97,7 +149,7 @@ def strip_leading_de(span: str) -> str:
 
 
 def normalize_spaces(s: str) -> str:
-    return re.sub(r"\s+", " ", s.strip()).replace("’","'")
+    return re.sub(r"\s+", " ", s.strip()).replace("’", "'").replace("\u2019", "'")
 
 # ----------------- chargement YAML -----------------
 
@@ -137,8 +189,17 @@ def load_markers(rules_dir: Path) -> Dict[str, List[Dict[str, Any]]]:
             rule["group"] = gid
             pat = rule.get("when_pattern")
             if pat:
+                # Nettoyer le pattern YAML avant compilation - méthode plus robuste
+                # 1. Supprimer tous les retours à la ligne
+                clean_pattern = pat.replace('\n', '')
+                # 2. Normaliser les espaces multiples mais préserver les \s dans regex
+                clean_pattern = re.sub(r'(?<!\\)\s+', '', clean_pattern)
+                # 3. Remettre des espaces autour des | si nécessaire
+                clean_pattern = re.sub(r'\|', '|', clean_pattern)
+                
                 flags = reg.IGNORECASE if rule.get("options",{}).get("case_insensitive") else 0
-                rule["_compiled"] = reg.compile(pat, flags)
+                rule["_compiled"] = reg.compile(clean_pattern, flags)
+                rule["_clean_pattern"] = clean_pattern  # Garder le pattern nettoyé pour debug
             comp_guards = []
             for g in rule.get("negative_guards", []) or []:
                 gp = g.get("pattern") if isinstance(g, dict) else g
@@ -204,7 +265,11 @@ def apply_marker_rule(rule: Dict[str,Any], text: str) -> List[Dict[str,Any]]:
     # Skip QC/validation rules: they shouldn't emit cues. We detect them via
     # the presence of an "action" field or an id starting with "QC_".
     if rule.get("action") or (str(rule.get("id", "")).upper().startswith("QC_")):
+        logging.debug(f"Skipping QC rule: {rule.get('id')}")
         return out
+
+    # Log the rule being applied
+    logging.debug(f"Applying rule: {rule.get('id')} to text: {text}")
 
     pat = rule.get("_compiled")
     if not pat and not rule.get("when_pattern"):
@@ -217,35 +282,154 @@ def apply_marker_rule(rule: Dict[str,Any], text: str) -> List[Dict[str,Any]]:
     if not pat:
         flags = reg.IGNORECASE if rule.get("options",{}).get("case_insensitive") else 0
         try:
-            pat = reg.compile(rule["when_pattern"], flags)
-        except Exception:
+            # Si pas de pattern précompilé, compiler maintenant avec nettoyage
+            raw_pattern = rule["when_pattern"]
+            clean_pattern = re.sub(r'\n\s*\|', '|', raw_pattern)
+            clean_pattern = re.sub(r'\n\s+', '', clean_pattern)
+            
+            pat = reg.compile(clean_pattern, flags)
+            logging.debug(f"Compiled pattern for rule {rule.get('id')}: {clean_pattern} with flags: {flags}")
+        except Exception as e:
+            logging.error(f"Failed to compile pattern for rule {rule.get('id')}: {rule.get('when_pattern')} - Error: {e}")
             return out
+    
+    logging.debug(f"Searching for pattern in text: '{text}' with compiled pattern: {pat.pattern}")
+    matches_found = 0
     for m in pat.finditer(text):
+        matches_found += 1
+        logging.debug(f"Found match for rule {rule.get('id')}: {m.group()} at position {m.start()}-{m.end()}")
         if _guard_hits(rule, text, m):
+            logging.debug(f"Match blocked by guards for rule {rule.get('id')}")
             continue
+        
+        # Handle exclude_verbs_from_cue option
+        start_pos = m.start()
+        end_pos = m.end()
+        span_text = text[start_pos:end_pos]
+        
+        # TOUJOURS exclure les verbes pour les marqueurs bipartites (requis par l'utilisateur)
+        exclude_verbs = rule.get("options", {}).get("exclude_verbs_from_cue", False)
+        
+        # Force l'exclusion des verbes pour TOUS les groupes bipartites
+        if rule.get("group") == "bipartite":
+            exclude_verbs = True
+        
+        if exclude_verbs:
+            # Extract only negation markers, excluding verbs
+            span_text, start_pos, end_pos = _extract_negation_markers_only(text, m, rule)
+            logging.debug(f"Excluded verbs from cue for rule {rule.get('id')}: '{span_text}' at {start_pos}-{end_pos}")
+        
         label = _format_cue_label(rule.get("cue_label"), m)
-        out.append({
+        if exclude_verbs and not label:
+            label = span_text
+            
+        cue = {
             "id": rule.get("id","UNK_RULE"),
-            "cue_label": normalize_spaces(label),
-            "start": m.start(),
-            "end": m.end(),
+            "cue_label": normalize_spaces(label if label else span_text),
+            "start": start_pos,
+            "end": end_pos,
             "group": rule.get("group","unknown"),
-        })
+        }
+        logging.debug(f"Created cue from rule {rule.get('id')}: {cue}")
+        out.append(cue)
+    
+    if matches_found == 0:
+        logging.debug(f"No matches found for rule {rule.get('id')} in text: '{text}'")
+    else:
+        logging.debug(f"Rule {rule.get('id')} produced {len(out)} cues from {matches_found} matches")
+    
     return out
 
 
+def _extract_negation_markers_only(text: str, match, rule: Dict[str, Any]) -> Tuple[str, int, int]:
+    """
+    Extract only negation markers from a match, excluding verbs.
+    
+    This function handles the exclude_verbs_from_cue option by:
+    1. Identifying negation particles (ne, n', pas, jamais, plus, etc.)
+    2. Excluding verbs that appear between or around these particles
+    3. Returning the cleaned span containing only negation markers
+    """
+    import re
+    
+    match_text = match.group(0).strip()
+    match_start = match.start()
+    match_end = match.end()
+    
+    # Detect bipartite patterns: "ne/n' ... pas/plus/jamais/rien/personne/etc"
+    # This regex finds the first negation particle and the second one, excluding verbs in between
+    bipartite_pattern = r"\b(n['']?|ne)\b.*?\b(pas|plus|jamais|rien|personne|guère|point|nul)\b"
+    bipartite_match = re.search(bipartite_pattern, match_text, re.IGNORECASE)
+    
+    if bipartite_match:
+        # Extract the two particles separately
+        part1_pattern = r"\b(n['']?|ne)\b"
+        part2_pattern = r"\b(pas|plus|jamais|rien|personne|guère|point|nul)\b"
+        
+        part1_match = re.search(part1_pattern, match_text, re.IGNORECASE)
+        part2_match = re.search(part2_pattern, match_text, re.IGNORECASE)
+        
+        if part1_match and part2_match:
+            part1_text = part1_match.group(1)
+            part2_text = part2_match.group(1)
+            
+            # Create label with only negation particles (no verbs)
+            cleaned_label = f"{part1_text} {part2_text}"
+            
+            # Return positions of the full match but cleaned label
+            return cleaned_label, match_start, match_end
+    
+    # Single negation particles (non-bipartite)
+    single_neg_patterns = [
+        r"\b(ne|n[''])\b",       # ne, n'
+        r"\b(pas)\b",            # pas
+        r"\b(plus)\b",           # plus
+        r"\b(jamais)\b",         # jamais
+        r"\b(rien)\b",           # rien
+        r"\b(personne)\b",       # personne
+        r"\b(guère)\b",          # guère
+        r"\b(point)\b",          # point
+        r"\b(nul)\b",            # nul
+        r"\b(aucun|aucune)\b",   # aucun, aucune
+        r"\b(sans)\b",           # sans
+        r"\b(ni)\b",             # ni
+        r"\b(non)\b",            # non
+        r"\b(absence)\b",        # absence
+    ]
+    
+    for pattern in single_neg_patterns:
+        single_match = re.search(pattern, match_text, re.IGNORECASE)
+        if single_match:
+            particle_text = single_match.group(1)
+            # For single particles, use their exact position within the match
+            particle_start = match_start + single_match.start(1)
+            particle_end = match_start + single_match.end(1)
+            return particle_text, particle_start, particle_end
+    
+    # Fallback: if no recognizable negation particles found, return original
+    return match_text, match_start, match_end
+
+
 def _mk_cue(rule: Dict[str,Any], a:int,b:int, span:str) -> Dict[str,Any]:
-    return {"id": rule.get("id","UNK_RULE"), "cue_label": span, "start": a, "end": b, "group": rule.get("group","unknown")}
+    cue = {"id": rule.get("id","UNK_RULE"), "cue_label": span, "start": a, "end": b, "group": rule.get("group","unknown")}
+    logging.debug(f"Created cue: {cue}")
+    return cue
 
 
 def _guard_hits(rule: Dict[str,Any], text: str, match=None) -> bool:
     guards = rule.get("_guards") or []
-    if not guards: return False
+    if not guards:
+        logging.debug(f"No guards defined for rule: {rule.get('id')}")
+        return False
+
     window = text
     if match:
         a = max(0, match.start()-40); b = min(len(text), match.end()+40)
         window = text[a:b]
-    return any(g.search(window) for g in guards)
+
+    result = any(g.search(window) for g in guards)
+    logging.debug(f"Guard check for rule: {rule.get('id')} in window: '{window}' - Result: {result}")
+    return result
 
 
 def _format_cue_label(lbl, m) -> str:
@@ -514,7 +698,10 @@ def detect_bipartite_cross_tokens(text: str, tokens: List[Tuple[str,int,int]], e
         if is_part1:
             # search ahead within max_tokens tokens (excluding punctuation tokens)
             gap = 0
-            for j in range(i+1, len(tokens)):
+            # Si c'est une contraction "n" + "'", commencer la recherche après l'apostrophe
+            start_search = i + 2 if (t == "n" and i + 1 < len(tokens) and tokens[i + 1][0] in ["'", "'"]) else i + 1
+            
+            for j in range(start_search, len(tokens)):
                 t2, a2, b2 = tokens[j]
                 # ignore pure punctuation tokens (e.g., commas). We consider them as gap but don't count them.
                 if re.match(PUNCT_RE, t2):
@@ -524,14 +711,21 @@ def detect_bipartite_cross_tokens(text: str, tokens: List[Tuple[str,int,int]], e
                     break
                 if t2.lower() in part2_set:
                     # ensure we don't already have this cue
+                    # Forme la clé avec les vraies positions 
                     key = (rule.get("id"), a, b2)
                     if key not in existing_keys:
-                        label = normalize_spaces(tok + " " + t2)
+                        # TOUJOURS exclure les verbes pour les bipartites (requis par l'utilisateur)
+                        # Créer un label avec seulement les particules de négation
+                        label = normalize_spaces(t[:2] + " " + t2) if t.startswith("n'") or t.startswith("n'") else normalize_spaces("ne " + t2)
+                        # Pour les positions, utiliser le span complet mais le label ne contient que les particules
+                        cue_start = a  # Start of "ne/n'"
+                        cue_end = b2   # End of "pas/plus/etc" (full span for scope calculation)
+                        
                         out.append({
                             "id": rule.get("id", "NE_BIPARTITE_EXTENDED"),
                             "cue_label": label,
-                            "start": a,
-                            "end": b2,
+                            "start": cue_start,
+                            "end": cue_end,
                             "group": rule.get("group", "bipartite")
                         })
                     break
