@@ -2,7 +2,7 @@
 # A) Mais restrictif / privatif
 # ——————————————————————————————————————————————————————————————
 - id: MAIS_RESTRICTIF
-  when_pattern: "(rien mais|tout mais)"
+  when_pattern: '\b(?P<match>(?:rien|tout)\s+mais)\b'
   cue_label: ["{match}"]
   group: "adversative"
   notes: >
@@ -15,6 +15,6 @@
     case_insensitive: true
     exclude_verbs_from_cue: true
   examples:
-    - "Il n’y a rien mais des problèmes. → rien, mais"
-    - "Tout mais ça ! → mais"
-    - "Rien mais des complications. → rien, mais"
+    - "Il n’y a rien mais des problèmes. → rien mais"
+    - "Tout mais ça ! → tout mais"
+    - "Rien mais des complications. → rien mais"

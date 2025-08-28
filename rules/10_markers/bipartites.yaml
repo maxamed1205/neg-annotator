@@ -5,10 +5,10 @@
   when_pattern: >
     (?:
       # Cas inversé : "Personne ne …"
-      \b(?P<part2a>personne)\b\s+(?P<part1a>n['’]?|ne)\b
+      \b(?P<part2a>personne)\b\s+(?P<part1a>n['’]?|ne)
       |
       # Cas standard : "ne … pas/plus/jamais/rien/personne/guère/point/nul"
-      \b(?P<part1b>n['’]?|ne)\b\s+(?P<part2b>pas|plus|jamais|rien|personne|guère|point|nul)\b
+      \b(?P<part1b>n['’]?|ne)\s*(?P<part2b>pas|plus|jamais|rien|personne|guère|point|nul)\b
     )
   cue_label: ["{part2a} {part1a}", "{part1b} {part2b}"]
   group: "bipartite"
@@ -46,7 +46,7 @@
 # B) Ellipse verbale "ne + verbe" sans pas/plus/jamais/rien/personne
 # ——————————————————————————————————————————————————————————————
 - id: NE_ELLIPTIQUE_VERBAL
-  when_pattern: '\b(?P<part1>n[''’]?|ne)\b\s+\w+'
+  when_pattern: '\b(?P<part1>n[''’]?|ne)\s*\w+'
   cue_label: ["{part1}"]
   group: "bipartite"
   notes: >
@@ -69,7 +69,7 @@
 # ——————————————————————————————————————————————————————————————
 - id: NE_COEXISTE_AVEC_DETERMINANT
   when_pattern: >
-    \b(?P<part1>n['’]?|ne)\b\s+\b(?P<det>aucun|aucune|pas d(?:e|’|'))
+    \b(?P<part1>n['’]?|ne)\s*\b(?P<det>aucun|aucune|pas d(?:e|’|'))
   cue_label: ["{part1}", "{det}"]
   group: "bipartite"
   notes: >

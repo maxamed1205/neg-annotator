@@ -1,0 +1,24 @@
+{
+  "id": 1,
+  "text": "Il n’a trouvé aucune anomalie.",
+
+  "candidates_rules_ID_cues": [
+    {"group": "bipartite", "rules": ["BIP_G_CORE", "BIP_G_COOC_DET_RESOLVE", "BIP_G_SUPPORT_AUTO"]},
+    {"group": "determinant", "rules": ["DET_G_CORE", "DET_G_SUPPORT_AUTO", "BIP_G_SUPPORT_AUTO"]}
+  ],
+
+  "cues": [
+    {"id": "NE_BIPARTITE_EXTENDED", "cue_label": "n’", "start": 3, "end": 5, "group": "bipartite"},
+    {"id": "DET_NEG_GENERIQUE", "cue_label": "aucune", "start": 14, "end": 20, "group": "determinant"}
+  ],
+
+  "candidates_rules_ID_scopes": [
+    {"group": "bipartite", "rules": ["BIP_G_COOC_DET_RESOLVE", "BIP_G_SUPPORT_AUTO", "BIP_G_CORE"]},
+    {"group": "determinant", "rules": ["DET_G_CORE", "DET_G_SUPPORT_AUTO", "BIP_G_SUPPORT_AUTO"]}
+  ],
+
+  "scopes": [
+    {"id": "BIP_G_CORE", "scope": "anomalie", "start": 21, "end": 29},
+    {"id": "DET_G_CORE", "scope": "anomalie", "start": 21, "end": 29}
+  ]
+}

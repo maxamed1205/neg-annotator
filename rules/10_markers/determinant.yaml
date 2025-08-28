@@ -12,14 +12,14 @@
 # ——————————————————————————————————————————————————————————————
 - id: DET_NEG_GENERIQUE
   when_pattern: >
-    \b(
+    \b(?P<match>
       aucun(?:e|s|es)?
       |nul(?:le|s|les)?
-      |pas\s+d(?:e|’|'')
+      |pas\s+d(?:e|u|’|')
       |pas\s+un(?:e)?
       |jamais\s+de
       |point\s+de
-      |guère\s+d(?:e|’|'')
+      |guère\s+d(?:e|u|’|')
       |ni\s+un(?:e)?\s+seul(?:e)?
     )\b
   cue_label: ["{match}"]
@@ -75,7 +75,7 @@
 # ——————————————————————————————————————————————————————————————
 - id: DET_NEG_COOC_NE
   when_pattern: >
-    \b(?P<det>aucun(?:e|s|es)?|nul(?:le|s|les)?|pas\s+d(?:e|’|'')|pas\s+un(?:e)?)\b\s+\b(?P<ne>n['’]?|ne)\b
+    \b(?P<det>aucun(?:e|s|es)?|nul(?:le|s|les)?|pas\s+d(?:e|u|’|')|pas\s+un(?:e)?)\b\s+\b(?P<ne>n['’]?|ne)\b
   cue_label: ["{det}", "{ne}"]
   group: "determinant"
   notes: >
@@ -168,7 +168,7 @@
       pas\s+un(?:e)?\s+seul(?:e)?|
       ni\s+un(?:e)?\s+seul(?:e)?|
       point\s+de|
-      guère\s+d(?:e|’|'')
+      guère\s+d(?:e|u|’|')
     )
   cue_label: ["{jamais}", "{det}"]
   group: "determinant"

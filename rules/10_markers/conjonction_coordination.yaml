@@ -2,7 +2,7 @@
 # A) Coordination négative : "ni … ni … (ni …)" (y compris en position initiale)
 # ——————————————————————————————————————————————————————————————
 - id: NI_NI_COORD
-  when_pattern: '\bni\b'
+  when_pattern: '\b(?P<match>ni)\b'
   cue_label: ["{match}"]
   group: "conjonction"
   notes: >
@@ -29,15 +29,15 @@
 - id: NI_COMBINAISONS
   when_pattern: >
     (?P<first>
-      pas\s+d(?:e|u|’|'')\s+[^,;:.]+?     # "pas de X"
-      |sans\s+[^,;:.]+?                   # "sans X"
-      |aucun|aucune|aucuns|aucunes        # "aucun…"
-      |nul|nulle|nuls|nulles              # "nul…"
-      |jamais                             # "jamais …"
-      |rien                               # "rien …"
-      |personne                           # "personne …"
-      |guère                              # "guère …"
-      |point                              # "point …"
+      pas\s+d(?:e|u|’|'')\s+[^,;:.]+?
+      |sans\s+[^,;:.]+?
+      |aucun|aucune|aucuns|aucunes
+      |nul|nulle|nuls|nulles
+      |jamais
+      |rien
+      |personne
+      |guère
+      |point
     )(?:,\s*)?(?P<ni>\bni\b)(?:\s+\w+)?(?:\s*,?\s*ni\s+\w+)*
   cue_label: ["{first}", "{ni}"]
   group: "conjonction"

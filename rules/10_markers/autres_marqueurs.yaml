@@ -2,13 +2,12 @@
 # A2) Synonymes formels : "nul/nulle/nuls/nulles"
 # ——————————————————————————————————————————————————————————————
 - id: AUCUN_DET_SYNONYMES_NUL
-  when_pattern: '\bnul(le|s|les)?\b'
-  cue_label: ["{match}"]
-  group: "autres_marqueurs"
+  when_pattern: '\b(?P<det>nul|nulle|nuls|nulles)\b'
+  cue_label: ["{det}"]
+  group: "determinant"
   notes: >
     Synonyme formel de 'aucun' parfois présent en style médico-administratif.
-    Annoté comme le même cue.
-    À activer/désactiver selon corpus.
+    Annoté comme déterminant négatif.
   options:
     regex: true
     case_insensitive: true
@@ -16,3 +15,4 @@
     global: true
   examples:
     - "Nulle anomalie détectée. → nulle"
+    - "Nuls effets indésirables observés. → nuls"
