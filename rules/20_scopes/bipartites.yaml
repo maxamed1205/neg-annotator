@@ -28,6 +28,7 @@
     max_token_gap: 8
     stop_punct: [".",";",":"]
     fallback_char_gap: 40   # utilisé seulement si la segmentation en tokens échoue
+    exclude_verbs_from_scope : true
   notes: >
     "ne … que" exprime une restriction (≈ seulement), pas une négation.
     Priorité au gap en tokens (max_token_gap: 8).

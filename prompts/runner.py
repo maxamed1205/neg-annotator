@@ -812,9 +812,9 @@ def detect_bipartite_cross_tokens(text: str, tokens: List[Tuple[str,int,int]], e
 # LLM-related hints removed for deterministic-only mode.
 
 
-def make_llm_contract(mode: str, text: str, cues: List[Dict[str,Any]]) -> Dict[str,Any]:
-    # Deterministic-only contract: no LLM instructions or hints.
-    return {"mode": "deterministic"}
+# LLM contract removed: this runner is deterministic-only and does not build
+# or attach any LLM prompts or instructions. Any orchestration for LLMs should
+# be documented in an external `orchestrator.md` and handled outside this script.
 
 # ----------------- builders -----------------
 
@@ -833,7 +833,7 @@ def build_candidates_rules_id_scopes(groups_present: List[str], order_by_group: 
 
 # ----------------- annotation d'une phrase -----------------
 
-def annotate_sentence(text: str, sid: int, markers_by_group, strategies_by_id, order_by_group, mode: str) -> Dict[str,Any]:
+def annotate_sentence(text: str, sid: int, markers_by_group, strategies_by_id, order_by_group) -> Dict[str,Any]:
     tokens = tokenize_with_offsets(text)
 
     # 1) cues déterministes (10_markers)
@@ -869,46 +869,16 @@ def annotate_sentence(text: str, sid: int, markers_by_group, strategies_by_id, o
 
     groups_present = sorted({c["group"] for c in cues})
 
-    # 2) scopes par groupe (ordre registry)
-    group_scopes: Dict[str,List[Dict[str,Any]]] = {g: [] for g in groups_present}
-    for g in groups_present:
-        strats = order_by_group.get(g, [])
-        for sid_ in strats:
-            strat = strategies_by_id.get(sid_)
-            if not strat: continue
-            if strat.get("when_group") and strat.get("when_group") != g:
-                continue
-            res = exec_strategy(g, sid_, strat, text, tokens, [c for c in cues if c["group"]==g], group_scopes)
-            if res and any("_skip_group" in r for r in res):
-                group_scopes[g] = []
-                break
-            group_scopes[g].extend(res)
+    # Scopes generation removed: scope extraction and QC are delegated to the
+    # LLM / post-processing step. We no longer compute group_scopes or scopes
+    # here to keep this runner deterministic and focused on cue detection.
 
-    # 3) QC
-    all_scopes = [s for L in group_scopes.values() for s in L]
-    all_scopes = apply_qc(all_scopes, text)
-
-    # LLM instructions removed in deterministic-only mode: ensure no pending list
-    pending = []
-
-    # 4) objet final (Étape 1)
     obj = {
         "id": sid,
         "text": text,
         "pipeline_step": "STEP1_DETERMINISTIC",
         "candidates_rules_ID_cues": build_candidates_rules_id_cues(groups_present, markers_by_group),
-        "cues": cues,
-        "candidates_rules_ID_scopes": build_candidates_rules_id_scopes(groups_present, order_by_group),
-        "scopes": [
-            {"id": s.get("id","CORE"), "scope": s.get("scope",""),
-             "start": s.get("start",-1), "end": s.get("end",-1),
-             **({"role": s["role"]} if "role" in s else {})}
-            for s in all_scopes
-        ],
-        # 🔥 Ici on fusionne avec make_llm_contract
-    "llm_contract": make_llm_contract(mode, text, cues),
-        "LLM_actions": [],
-        "LLM_ajouts": {"cues": [], "scopes": []}
+        "cues": cues
     }
     return obj
 
@@ -919,7 +889,7 @@ def main():
     ap.add_argument("--rules", required=True, help="Chemin dossier rules/")
     ap.add_argument("--input", required=True, help="Fichier texte (1 phrase/ligne)")
     ap.add_argument("--output", required=True, help="Sortie JSONL")
-    ap.add_argument("--mode", default="permissive", choices=["permissive","strict"], help="Mode LLM")
+    # removed --mode/LLM flags: runner is deterministic-only
     ap.add_argument("--log", default="INFO")
     args = ap.parse_args()
 
@@ -933,10 +903,13 @@ def main():
     with open(args.input, "r", encoding="utf-8") as fin, open(args.output, "w", encoding="utf-8") as fout:
         for line in fin:
             text = line.strip()
-            if not text: continue
+            if not text:
+                continue
             sid += 1
-            obj = annotate_sentence(text, sid, markers_by_group, strategies_by_id, order_by_group, args.mode)
-            fout.write(json.dumps(obj, ensure_ascii=False) + "\n")
+            obj = annotate_sentence(text, sid, markers_by_group, strategies_by_id, order_by_group)
+            # Write a minimal JSON object: only id, text and cues (user requested)
+            minimal = {"id": obj.get("id"), "text": obj.get("text"), "cues": obj.get("cues", [])}
+            fout.write(json.dumps(minimal, ensure_ascii=False) + "\n")
     log.info("Terminé: %d phrases → %s", sid, args.output)
 
 if __name__ == "__main__":
