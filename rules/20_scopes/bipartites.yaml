@@ -1,141 +1,38 @@
-# ============================================================
-# 20_scopes/bipartites.yaml — v5 (group-based, replaces ne_pas.yaml)
-# Portées pour tout cue du groupe: "bipartite"
-# Couvre: "ne … pas/plus/jamais/point/guère", "rien ne", "personne ne",
-#         ellipses "ne + verbe" (style télégraphique), hors "ne … que" (non-négatif).
-# - CORE: choisit automatiquement la bonne stratégie de portée selon le cadre verbal
-# - COOC_RESOLVE: fusion/partage de cibles avec 'determinant' si même entité
-# - SUPPORT_AUTO: 0..N gouverneurs (patient/examen/document/agent), gauche & droite
-# Dépendances:
-#   - 10_markers/bipartites.yaml assigne group="bipartite" (et SKIP "ne … que")
-#   - Ressources externes (optionnelles):
-#       * BIP_VERBS_COPULA       : être, paraître, sembler, rester…
-#       * BIP_VERBS_CONSTATER    : montrer, révéler, déceler, détecter, constater, observer…
-#       * BIP_VERBS_OCCURRENCE   : présenter, développer, faire, survenir…
-#       * RIGHT_SUPPORT_PREPS_*  : (voir locutions v5.1)
-# ============================================================
-  # ----------------------------------------------------------
-  # 0) Garde "ne … que" (sécurité si le marker n’a pas déjà SKIP)
-  # ----------------------------------------------------------
-- id: BIP_G_SKIP_NE_QUE
-  when_group: "bipartite"
-  scope_strategy: "SKIP_IF_PATTERN"
-  priority: "very_high"
-  options:
-    pattern: "\\b(n['’]?|ne)\\b\\s+\\bque\\b"   # simplifié
-    regex: true
-    case_insensitive: true
-    max_token_gap: 8
-    stop_punct: [".",";",":"]
-    fallback_char_gap: 40   # utilisé seulement si la segmentation en tokens échoue
-    exclude_verbs_from_scope : true
-  notes: >
-    "ne … que" exprime une restriction (≈ seulement), pas une négation.
-    Priorité au gap en tokens (max_token_gap: 8).
-    Le fallback caractères (40) n’est utilisé qu’en cas de segmentation défaillante.
-  examples:
-    - "Il ne mange que des légumes. → (skip, restriction)"
-    - "Elle n’a que deux enfants. → (skip, restriction)"
-    - "Le patient ne présente que des symptômes mineurs. → (skip, restriction)"
-    - "On n’observe que de rares anomalies. → (skip, restriction)"
-    - "Il n’y a eu que des cas isolés. → (skip, restriction)"
-
   # ----------------------------------------------------------
   # 1) CORE — portée(s) SMART pour tout bipartite
-  #    Cadres (ordonnés) :
-  #      a) PRON_NEG_SUJET : "rien ne …", "personne ne …" → prédicat complet
-  #      b) COPULA_ATTR    : copule + attribut (ADJ/NOM) → sujet optionnel, attribut prioritaire
-  #      c) CONSTATER_EXAM : verbes d’examen/constat → entité niée (NP) ; l’examen ira en SUPPORT
-  #      d) OCCURRENCE     : verbes d’occurrence clinique → entité niée (NP) ; le sujet ira en SUPPORT
-  #      e) ACTION_VP      : verbe d’action/fonction → VP minimale (verbe + complément essentiel)
-  #    + Multi-scopes sur NP coordonnés (hors "ni", géré par conjonction)
-  #    + Ellipse "ne + verbe" : fallback conservateur (VP/NP droite)
   # ----------------------------------------------------------
 - id: BIP_G_CORE
   when_group: "bipartite"
-  scope_strategy: "NEP_SMART"
+  scope_strategy: "SUBJECT_VERB_OBJECT"
   options:
-  max_token_gap: 8
-  stop_punct: [".",";",":"]
-
-  frames_order: ["PRON_NEG_SUJET","COPULA_ATTR","CONSTATER_EXAM","OCCURRENCE","ACTION_VP","FALLBACK"]
-  verbs_copula_external: "BIP_VERBS_COPULA"
-  verbs_constater_external: "BIP_VERBS_CONSTATER"
-  verbs_occurrence_external: "BIP_VERBS_OCCURRENCE"
-
-  # === PRON_NEG_SUJET (rien/personne) ===
-  pron_neg_subjects: ["rien","personne"]
-  pron_scope_policy: "full_then_minimal"   # défaut: prédicat complet, sinon fallback minimal
-  pron_scope_max_tokens: 12                # seuil pour déclencher le fallback
-  pron_minimal_strategy: "VP_MINIMAL_CORE" # verbe contenu + arguments essentiels
-  # Aide pour VP_MINIMAL_CORE :
-  raising_verbs_external: "RAISING_OR_LIGHT_VERBS"   # p.ex. sembler, paraître, vouloir, pouvoir, devoir, essayer, chercher à…
-  prefer_xcomp_infinitive: true                      # si xcomp/infinitif existe → prendre l’infinitif (reprendre, marcher…)
-  minimal_include_objects: true                      # inclure objets/compléments essentiels (obj, xcomp, iobj, comp:obl 'à/de')
-  minimal_exclude_adjuncts: true                     # exclure advmod/obl circonstanciels (temps, concession…)
-  adjunct_preps_nonessential_external: "ADJUNCT_PREPS_NONESSENTIAL"
-    # ex. ["malgré","en dépit de","au regard de","en accord avec","selon","d’après","conformément à"]
-
-  # === COPULA ===
-  copula_include_subject_in_scope: true
-
-  # === CONSTATER/EXAMEN ===
-  constater_extract_entity: true
-  prefer_de_gn_if_present: true
-  constater_include_subject_in_scope: true   # <-- ajout
-
-  # Coordination (hors 'ni', géré par conjonction)
-  emit_multi_scopes: true
-  coord:
-    prefer_dep_label: "conj"
-    surface_conj: ["et",","]
-    split_on_shared_head: true
-
-  # === OCCURRENCE ===
-  occurrence_extract_entity: true
-  occurrence_include_subject_in_scope: true  # <-- ajout
-
-  # === ACTION_VP ===
-  action_vp_minimal: true
-  action_include_subject_in_scope: true      # <-- ajout
-
-  # === FALLBACK (ellipse 'ne + verbe') ===
-  fallback:
-    strategy: "WINDOW_RIGHT_SMART"
-    window_tokens: 8
-    reject_if_only_verb: true        # <-- nouveau
-    exclude_verbs_from_scope: true   # <-- idem
-  deny_if_group_present:
-    group: "preposition"
-    labels: ["sans"]
-    window_tokens: 8
-    precedence: "higher"
+    include_subject: true
+    include_object: true
+    include_predicative_attribute: true      # 🔥 nouveau → attr. du sujet (verbe "être")
+    include_passive_participle: true         # 🔥 nouveau → voix passive complète
+    exclude_adjuncts: true
+    max_token_gap: 12                        # un peu plus permissif
+    stop_punct: [".",";",":"]
   notes: >
-    Le fallback ne doit jamais produire une portée réduite au verbe seul.
-    - Si seule une forme verbale est capturée → rejeter.
-    - Si un verbe + GN → exclure le verbe et garder le GN.
-    - Objectif : toujours retourner un complément informatif plutôt qu’un verbe isolé.
-    PRON_NEG_SUJET:
-      - Par défaut: portée = prédicat complet.
-      - Si le prédicat dépasse {pron_scope_max_tokens} tokens → fallback 'VP_MINIMAL_CORE':
-        * saute les verbes de montée/auxiliaires légers (RAISING_OR_LIGHT_VERBS),
-        * privilégie l’infinitif de contenu (xcomp) si présent,
-        * inclut objets/compléments essentiels (obj, xcomp, comp 'à/de'),
-        * exclut les adjuncts non essentiels (advmod/obl avec préps de ADJUNCT_PREPS_NONESSENTIAL).
-
-    COPULA_ATTR / CONSTATER / OCCURRENCE / ACTION_VP:
-      - Tous configurés avec *_include_subject_in_scope: true
-      - Donc la portée inclut aussi le sujet (ex.: "IRM ne montre pas" → IRM).
-
+    Règle de portée principale pour les négations bipartites ("ne … pas / plus / jamais / rien / personne").
+    - Inclure systématiquement le sujet explicite + le prédicat ou l’entité niée.
+    - Conserver les compléments essentiels (objets, GN introduits par "de").
+    - Exclure les compléments circonstanciels (temps, lieu, cause).
+    - Exclure les cas de restriction "ne … que" (filtrés par une autre règle).
+    - Si le sujet est un pronom négatif ("rien", "personne"), inclure le prédicat complet.
+      - Inclure systématiquement le sujet explicite.
+    - Si le verbe est copule ("être"), inclure l’attribut (adj/nom).
+    - Si la construction est passive, inclure le groupe verbal complet (auxiliaires + participe).
+    - Conserver les COD/COI/compléments essentiels.
+    - Exclure les circonstanciels (temps, lieu, cause).
   examples:
-    - "Personne ne tousse. → scope: personne, tousse"
-    - "Rien ne fonctionne. → scope: rien, fonctionne"
-    - "Personne ne semble vouloir reprendre le traitement en cours malgré les explications du médecin."
-      # prédicat long → fallback minimal : scope: personne, reprendre, traitement
-    - "Le résultat n’est pas concluant. → scope: résultat, concluant"
-    - "L’IRM ne montre pas de récidive. → scope: IRM, récidive"
-    - "La patiente n’a pas présenté de complication. → scope: patiente, complication"
-    - "Le patient ne parvient pas à avaler de liquide. → scope: patient, avaler, liquide"
+    - "Les patients n’ont pas présenté de complication. → patients, complication"
+    - "L’IRM n’a pas montré de récidive. → IRM, récidive"
+    - "Le résultat n’est pas concluant. → résultat, concluant"
+    - "Rien n’a été observé. → (scope complet) rien, a été observé"
+    - "L’examen n’a pas révélé d’anomalie. → examen, anomalie"
+    - "Le traitement n’a pas amélioré l’état du patient. → traitement, état du patient"
+    - "L’échographie n’a pas détecté de fracture. → échographie, fracture"
+    - "Le patient n’a pas terminé son traitement. → patient, traitement"
   # ----------------------------------------------------------
   # 1.b) Résolution de cooccurrence avec le groupe 'determinant'
   #   - Si 'ne …' et un déterminant négatif visent la MÊME entité → 1 seul scope partagé
@@ -216,3 +113,28 @@
       - "Absence de données en accord avec la littérature. → scope: littérature, données"
 
 
+  # ----------------------------------------------------------
+  # 0) Garde "ne … que" (sécurité si le marker n’a pas déjà SKIP)
+  # ----------------------------------------------------------
+- id: BIP_G_SKIP_NE_QUE
+  when_group: "bipartite"
+  scope_strategy: "SKIP_IF_PATTERN"
+  priority: "very_high"
+  options:
+    pattern: "\\b(n['’]?|ne)\\b\\s+\\bque\\b"   # simplifié
+    regex: true
+    case_insensitive: true
+    max_token_gap: 8
+    stop_punct: [".",";",":"]
+    fallback_char_gap: 40   # utilisé seulement si la segmentation en tokens échoue
+    exclude_verbs_from_scope : true
+  notes: >
+    "ne … que" exprime une restriction (≈ seulement), pas une négation.
+    Priorité au gap en tokens (max_token_gap: 8).
+    Le fallback caractères (40) n’est utilisé qu’en cas de segmentation défaillante.
+  examples:
+    - "Il ne mange que des légumes. → (skip, restriction)"
+    - "Elle n’a que deux enfants. → (skip, restriction)"
+    - "Le patient ne présente que des symptômes mineurs. → (skip, restriction)"
+    - "On n’observe que de rares anomalies. → (skip, restriction)"
+    - "Il n’y a eu que des cas isolés. → (skip, restriction)"
