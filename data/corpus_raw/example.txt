@@ -1,10 +1,10 @@
-Test sanguin complet négatif pour toutes les infections.
-La recherche d’infection urinaire est négative.
-Culture bactérienne négative après 48 heures d’incubation.
-Bilan hépatique négatif.
-Radiographie pulmonaire négative pour toute lésion.
-Prélèvement urinaire négatif pour Escherichia coli.
-IRM cérébrale fonctionnelle négative.
-Pression artérielle négative pour hypotension.
-Troponine négative, absence d’atteinte cardiaque.
-Sérologie négative pour anticorps spécifiques.
+Les patients n'ont pas signalé de douleur, aucune fièvre n'a été observée, et il n'y a pas de signes cliniques; sans preuve d'infection.
+Aucune anomalie n’a été trouvée, le bilan ne montre plus d'élévation enzymatique, et on n'a noté aucune rechute ni complication.
+Il n’existe pas de preuve scientifique soutenant l'hypothèse, le patient n'a jamais présenté de symptôme, et on n'observe aucun marqueur biologique significatif.
+Ni toux ni dyspnée n'ont été rapportées, l'examen n'est pas concluant et il n'y a aucune lésion visible à l'imagerie, sans signes radiologiques évidents.
+Le traitement n’a pas montré d’effet, on ne trouve aucune amélioration, et il n’y a pas de corrélation avec les facteurs de risque; absence de réponse clinique.
+Le patient n’a ressenti aucune gêne thoracique, ni palpitations, et on n’a noté aucune anomalie électrocardiographique; malgré un examen approfondi, il n’existe guère de signes cliniques révélateurs, et aucune corrélation avec les facteurs de risque n’a été observée.
+Aucune infection n’a été détectée, les analyses biologiques ne révèlent rien d’anormal, et le suivi ne montre jamais de fluctuation significative des marqueurs inflammatoires; sans symptôme apparent, l’évolution reste stable et sans complication.
+Ni céphalée ni vertige n’ont été rapportés, l’imagerie cérébrale ne révèle aucune lésion, et on n’observe aucune altération cognitive; le patient n’a présenté aucune réaction indésirable aux traitements administrés, et aucun signe de rechute n’est apparu.
+Le traitement expérimental n’a produit aucun bénéfice notable, on ne constate plus de variation dans les paramètres physiologiques, et il n’y a guère de différence entre les groupes; sans amélioration subjective, aucune conclusion clinique ne peut être tirée.
+Aucune lésion cutanée n’a été observée, les examens dermatologiques ne montrent rien de pathologique, et il n’existe personne dans le foyer présentant des symptômes similaires; ni inflammation ni douleur n’ont été relevées, et l’état général demeure inchangé malgré l’absence de prise en charge spécifique.

@@ -9,7 +9,7 @@ import json
 import logging
 from pathlib import Path
 
-from .detector import load_markers, load_registry_and_scopes, annotate_sentence
+from .detector import load_markers, annotate_sentence
 
 
 def make_logger(level: str = "INFO") -> logging.Logger:
@@ -35,7 +35,6 @@ def main() -> None:
 
     rules_dir = Path(args.rules)
     markers_by_group = load_markers(rules_dir)
-    strategies_by_id, order_by_group = load_registry_and_scopes(rules_dir)
 
     sid = 0
     with open(args.input, "r", encoding="utf-8") as fin, open(args.output, "w", encoding="utf-8") as fout:
@@ -47,7 +46,7 @@ def main() -> None:
             seen_intervals = []  # ← réinitialisation ici
             # normalized_text = normalize_text_for_regex(text)
             # obj = annotate_sentence(text, sid, markers_by_group, strategies_by_id, order_by_group)
-            obj = annotate_sentence(text, sid, markers_by_group, strategies_by_id, order_by_group, seen_intervals)
+            obj = annotate_sentence(text, sid, markers_by_group, seen_intervals)
             minimal = {"id": obj.get("id"), "text": obj.get("text"), "cues": obj.get("cues", [])}
             # cue_ids = [c["id"] for c in minimal["cues"]]
             # print(f"Sentence {sid} cue IDs: {cue_ids}")

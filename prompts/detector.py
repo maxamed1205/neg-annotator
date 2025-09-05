@@ -5,59 +5,12 @@ import re
 from pathlib import Path
 from typing import Dict, List, Any, Tuple, Optional
 from .types import Token, Cue, Rule, Strategy
-from .tokenize import tokenize_with_offsets, window_right, strip_leading_de, normalize_spaces, DEFAULT_STOP_PUNCT, DEFAULT_STOP_LEXEMES
-from .loaders import _iter_yaml_files, infer_group_from_filename, load_markers, load_registry_and_scopes
-from .markers import _guard_hits, _format_cue_label, _extract_negation_markers_only, _find_cleaned_text_positions
+from .loaders import _iter_yaml_files, infer_group_from_filename, load_markers
+from .markers import _guard_hits, _extract_negation_markers_only, _find_cleaned_text_positions
 import regex as reg
-from .bipartite import detect_bipartite_cross_tokens
-from .strategies import exec_strategy
-from .qc import dedup, apply_qc
 import os
 import yaml
-import inspect
-
-debug_mode = True  # active/désactive les prints de debug
-
-# Dictionnaire global pour suivre combien de fois chaque message a été affiché
-_debug_counters = {}
-
-def debug_print(msg: str, *args, max_print: int = None, **kwargs):
-    """
-    Affiche un message de debug avec informations sur l'appelant.
-    max_print : nombre maximum d'affichages pour ce message (None = illimité)
-    """
-    if not debug_mode:
-        return
-
-    # Compteur pour ce message
-    counter_key = msg
-    if counter_key not in _debug_counters:
-        _debug_counters[counter_key] = 0
-
-    if max_print is not None and _debug_counters[counter_key] >= max_print:
-        return  # on dépasse le nombre de prints autorisé pour ce message
-
-    _debug_counters[counter_key] += 1
-
-    # Info sur l'appelant
-    frame = inspect.currentframe().f_back
-    func_name = frame.f_code.co_name
-    line_no = frame.f_lineno
-    filename = frame.f_code.co_filename.split("\\")[-1]
-
-    # Préparer le message principal
-    output = f"[DEBUG] {filename}:{func_name}:{line_no} → {msg}"
-
-    # Ajouter les variables avec leur type
-    if args:
-        vars_info = ", ".join(f"{repr(a)} (type={type(a).__name__})" for a in args)
-        output += " | Vars: " + vars_info
-
-    print(output, **kwargs)
-
-def _debug_return(p: Path) -> Path:
-    debug_print(f"Fichier trouvé : {p.name}")  # print le debug
-    return p  # retourne le Path pour la comprehension
+from .debug_print import debug_print
 
 def _mk_cue(rule: Dict[str,Any], a:int,b:int, span:str) -> Dict[str,Any]:
     return {"id": rule.get("id","UNK_RULE"), "cue_label": span, "start": a, "end": b, "group": rule.get("group","unknown")}
@@ -102,7 +55,6 @@ def apply_marker_rule(rule: Dict[str,Any], text: str, seen_intervals: List[Tuple
             span_text, start_pos, end_pos = _extract_negation_markers_only(text, m, rule)
             # Recalculer les positions nettoyées
         cleaned_positions = _find_cleaned_text_positions(text, span_text, start_pos)
-
         # générer le label
         if exclude_verbs:
             label = span_text
@@ -111,33 +63,15 @@ def apply_marker_rule(rule: Dict[str,Any], text: str, seen_intervals: List[Tuple
         # Construire le cue avec positions découpées
         cue = {
             "id": rule.get("id", "UNK_RULE"),
-            "cue_label": normalize_spaces(label if label else span_text),
+            "cue_label": label,
             "positions": cleaned_positions,  # liste de tuples (start, end)
             "group": rule.get("group", "unknown"),
         }
         out.append(cue)
     return out
 
-
-
-# --- Additional deterministic helpers (surface prep injection) ---
-# Note: bipartite detection and deterministic surface marker injection are
-# implemented in dedicated modules. See prompts.bipartite and prompts.markers.
-
-
-def build_candidates_rules_id_cues(groups_present: List[str], markers_by_group: Dict[str,List[Dict[str,Any]]]) -> List[Dict[str,Any]]:
-    out=[]
-    for g in groups_present:
-        out.append({"group": g, "rules": [r.get("id","UNK_RULE") for r in markers_by_group.get(g,[])]})
-    return out
-
-
-debug_mode = True  # Global toggle for debug printing
-
-def annotate_sentence(text: str, sid: int, markers_by_group, strategies_by_id, order_by_group, seen_intervals) -> Dict[str,Any]:
-    tokens = tokenize_with_offsets(text)
+def annotate_sentence(text: str, sid: int, markers_by_group, seen_intervals) -> Dict[str,Any]:
     cues: List[Dict[str,Any]] = []
-
     for g, rules in markers_by_group.items(): # Parcourt chaque groupe (g) par exemple "adversative", "determinant", etc. de marqueurs  et ses règles associées par exemple MAIS_RESTRICTIF # .items() retourne des paires (clé, valeur) : g = nom du groupe, rules = liste des règles associées
         for r in rules: #  ses règles associées par exemple MAIS_RESTRICTIF
             cues.extend(apply_marker_rule(r, text, seen_intervals)) # Applique la règle `r` au texte et ajoute toutes les cues détectées à la liste `cues`
@@ -151,16 +85,4 @@ def annotate_sentence(text: str, sid: int, markers_by_group, strategies_by_id, o
     }
     return obj
 
-
-def annotate_batch(lines: List[str], markers_by_group, strategies_by_id, order_by_group) -> List[Dict[str,Any]]:
-    out = []
-    sid = 0
-    for line in lines:
-        sid += 1
-        text = line.strip()
-        if not text:
-            continue
-        out.append(annotate_sentence(text, sid, markers_by_group, strategies_by_id, order_by_group))
-    return out
-
-__all__ = ["tokenize_with_offsets","load_markers","load_registry_and_scopes","annotate_sentence","annotate_batch","make_logger"]
+__all__ = ["load_markers","annotate_sentence","make_logger"]

@@ -4,55 +4,9 @@ import re
 from typing import List, Dict, Any, Tuple, Optional
 import inspect
 import regex as reg
-
-from .tokenize import normalize_spaces
+from .debug_print import debug_print
 
 log = logging.getLogger("prompts.markers")
-
-
-debug_mode = True  # active/désactive les prints de debug
-
-# Dictionnaire global pour suivre combien de fois chaque message a été affiché
-_debug_counters = {}
-
-def debug_print(msg: str, *args, max_print: int = None, **kwargs):
-    """
-    Affiche un message de debug avec informations sur l'appelant.
-    max_print : nombre maximum d'affichages pour ce message (None = illimité)
-    """
-    if not debug_mode:
-        return
-
-    # Compteur pour ce message
-    counter_key = msg
-    if counter_key not in _debug_counters:
-        _debug_counters[counter_key] = 0
-
-    if max_print is not None and _debug_counters[counter_key] >= max_print:
-        return  # on dépasse le nombre de prints autorisé pour ce message
-
-    _debug_counters[counter_key] += 1
-
-    # Info sur l'appelant
-    frame = inspect.currentframe().f_back
-    func_name = frame.f_code.co_name
-    line_no = frame.f_lineno
-    filename = frame.f_code.co_filename.split("\\")[-1]
-
-    # Préparer le message principal
-    output = f"[DEBUG] {filename}:{func_name}:{line_no} → {msg}"
-
-    # Ajouter les variables avec leur type
-    if args:
-        vars_info = ", ".join(f"{repr(a)} (type={type(a).__name__})" for a in args)
-        output += " | Vars: " + vars_info
-
-    print(output, **kwargs)
-
-def _debug_return(p: Path) -> Path:
-    debug_print(f"Fichier trouvé : {p.name}")  # print le debug
-    return p  # retourne le Path pour la comprehension
-
 
 def _guard_hits(rule: Dict[str, Any], text: str, match=None) -> bool:
     guards = rule.get("_guards") or []
@@ -66,25 +20,6 @@ def _guard_hits(rule: Dict[str, Any], text: str, match=None) -> bool:
     return any(g.search(window) for g in guards)
 
 
-def _format_cue_label(lbl, m) -> str:
-    if lbl is None:
-        return m.group(0)
-    if isinstance(lbl, list):
-        for cand in lbl:
-            try:
-                v = cand.format(**m.groupdict(default="")).strip()
-            except Exception:
-                v = cand
-            if v:
-                return v
-        return lbl[0]
-    if isinstance(lbl, str):
-        try:
-            return lbl.format(**m.groupdict(default="")).strip()
-        except Exception:
-            return lbl
-    return str(lbl)
-    
 def _find_cleaned_text_positions(original_text: str, cleaned_text: str, approx_start: int, window_size: int = 50) -> List[Tuple[int, int]]:
     """
     Version corrigée pour trouver les positions exactes des segments nettoyés
@@ -132,22 +67,10 @@ def _find_cleaned_text_positions(original_text: str, cleaned_text: str, approx_s
     # print(f"[DEBUG _find_cleaned_text_positions] '{cleaned_text}' → {positions}")
     return positions
 
-
-
 def _extract_negation_markers_only(text: str, match, rule: Dict[str, Any]) -> Tuple[str, int, int]:
-    # debug_print("Avant extraction", f"'{text[match.start():match.end()]}'", "start:", match.start(), "end:", match.end())
     match_text = match.group(0)
     match_start = match.start()
     match_end = match.end()
-
-    # On récupère directement le span complet correspondant au match
-    # match_start = match.start()
-    # match_end = match.end()
-    # match_text = text[match_start:match_end]
-    # Debug : afficher le match original
-    # debug_print("Après extraction", f"'{text[match.start():match.end()]}'", "start:", match.start(), "end:", match.end())
-
-
     bipartite_pattern = r"(?:\bne\b|n['’]).*?\b(pas|plus|jamais|rien|personne|guère|point|nul)\b"
     bipartite_match = re.search(bipartite_pattern, match_text, re.IGNORECASE)
     if bipartite_match:
@@ -197,5 +120,4 @@ SURFACE_PREP_MARKERS = {
     "malgré": {"id": "PREP_MALGRÉ", "group": "preposition", "cue_label": "malgré"},
 }
 
-
-__all__ = ["apply_marker_rule", "inject_surface_markers", "_guard_hits", "_format_cue_label"]
+__all__ = ["apply_marker_rule", "inject_surface_markers", "_guard_hits"]
