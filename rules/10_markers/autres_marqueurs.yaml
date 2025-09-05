@@ -1,13 +1,13 @@
 # ——————————————————————————————————————————————————————————————
-# A2) Synonymes formels : "nul/nulle/nuls/nulles"
+# A) Synonymes formels : "nul/nulle/nuls/nulles" et "rien"
 # ——————————————————————————————————————————————————————————————
-- id: AUCUN_DET_SYNONYMES_NUL
-  when_pattern: '\b(?P<det>nul|nulle|nuls|nulles)\b'
+- id: AUCUN_DET_SYNONYMES_NUL_RIEN
+  when_pattern: '\b(?P<det>nul|nulle|nuls|nulles|rien)\b'
   cue_label: ["{det}"]
   group: "determinant"
   notes: >
-    Synonyme formel de 'aucun' parfois présent en style médico-administratif.
-    Annoté comme déterminant négatif.
+    Synonyme formel de 'aucun' parfois présent en style médico-administratif,
+    et marqueur de négation 'rien'. Annoté comme déterminant négatif.
   options:
     regex: true
     case_insensitive: true
@@ -16,3 +16,88 @@
   examples:
     - "Nulle anomalie détectée. → nulle"
     - "Nuls effets indésirables observés. → nuls"
+    - "Il y a rien dans ce dossier. → rien"
+    - "Rien ne permet de confirmer l'hypothèse. → rien"
+
+# ——————————————————————————————————————————————————————————————
+# B) Marqueur implicite de négation : "négatif / négative" pour tests, examens et observations cliniques
+# ——————————————————————————————————————————————————————————————
+# ——————————————————————————————————————————————————————————————
+# B) Marqueur implicite de négation : "négatif / négative" pour tests, examens et observations cliniques
+# ——————————————————————————————————————————————————————————————
+- id: NEGATIF_RESULTAT
+  when_pattern: >
+    (?<=\b(?:
+      test|
+      recherche|
+      culture|
+      résultat|
+      bilan|
+      prélèvement|
+      radiographie|
+      IRM|
+      échographie|
+      ECG|
+      électrocardiogramme|
+      analyse|
+      pression\s+artérielle|
+      glycémie|
+      signes\s+cliniques|
+      symptômes|
+      score|
+      évaluation|
+      PCR|
+      sérologie|
+      imagerie|
+      métastases|
+      troponine|
+      protéinurie|
+      INR|
+      TSH|
+      ECG\s+Holter|
+      IRM\s+cérébrale\s+fonctionnelle|
+      évaluation\s+neuropsychologique
+    )(?:\s+\w+){0,10}?\s+)(?P<neg>
+      négatif|
+      négative|
+      négatifs|
+      négatives
+    )\b
+
+  cue_label: ["{neg}"]
+  group: "autres"
+  notes: >
+    Marqueur de négation implicite pour tests, examens, bilans, prélèvements, mesures biologiques, observations cliniques, imagerie ou tests psychologiques. 
+    On ne considère 'négatif' comme marqueur que s'il qualifie un résultat ou une mesure.
+  options:
+    regex: true
+    case_insensitive: true
+    exclude_verbs_from_cue: true
+    global: true
+  examples:
+    - "Test sanguin négatif pour le VIH. → négatif"
+    - "Recherche négative en antidépresseurs tricycliques. → négative"
+    - "Culture bactérienne négative après 48 heures. → négative"
+    - "Bilan hépatique négatif. → négatif"
+    - "Radiographie pulmonaire négative pour toute lésion. → négative"
+    - "Prélèvement urinaire négatif pour Escherichia coli. → négatif"
+    - "IRM cérébrale négative. → négative"
+    - "Pression artérielle négative pour hypotension. → négative"
+    - "Glycémie négative pour diabète. → négative"
+    - "Signes cliniques négatifs pour infection. → négatif"
+    - "Symptômes négatifs après traitement. → négatif"
+    - "Score de dépression négatif. → négatif"
+    - "Évaluation cognitive négative. → négative"
+    - "PCR négative pour le virus X. → négative"
+    - "Sérologie négative pour anticorps spécifiques. → négative"
+    - "Recherche négative de métastases. → négative"
+    - "Imagerie négative pour anomalie structurelle. → négative"
+    - "Troponine négative. → négative"
+    - "Protéinurie négative. → négative"
+    - "INR négatif. → négatif"
+    - "TSH négative. → négative"
+    - "ECG Holter négatif. → négatif"
+    - "IRM cérébrale fonctionnelle négative. → négative"
+    - "Évaluation neuropsychologique négative. → négative"
+    - "Les tests sérologiques sont négatifs. → négatifs"
+    - "Bilans hépatiques négatifs. → négatifs"

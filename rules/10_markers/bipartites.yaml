@@ -1,14 +1,14 @@
-
+# —————————————————————————————————————————————————————————————— 
 # A) Marqueurs bipartite de base
 # ——————————————————————————————————————————————————————————————
 - id: NE_BIPARTITE_EXTENDED
   when_pattern: >
     (?:
       # Cas inversé : "Personne ne …"
-      \b(?P<part2a>personne)\b\s+(?P<part1a>n['’]?|ne)
+      (?P<part2a>personne)\s+(?P<part1a>ne|n['’]?)
       |
       # Cas standard : "ne … pas/plus/jamais/rien/personne/guère/point/nul"
-      \b(?P<part1b>ne|n['’]?)(?:\s+\w+){0,2}\s+(?P<part2b>pas|plus|jamais|rien|personne|guère|point|nul)\b
+      \b(?P<part1>ne|n['’]?\w*)(?:\s+[\w']+){0,2}\s+(?P<part2>pas|plus|jamais|rien|personne|guère|point|nul)\b
     )
   cue_label: ["{part2a} {part1a}", "{part1b} {part2b}"]
   group: "bipartite"
@@ -46,7 +46,7 @@
 # B) Ellipse verbale "ne + verbe" sans pas/plus/jamais/rien/personne
 # ——————————————————————————————————————————————————————————————
 - id: NE_ELLIPTIQUE_VERBAL
-  when_pattern: "(?i)(?P<part1>\\bn[''][aàeiouèéêë]|\\bne)\\s+\\w+"
+  when_pattern: "(?i)(?P<part1>\\bne\\b|\\bn['’])(?:\\s+(?:\\w+['’]?\\w*|[yY])){0,5}"
   cue_label: ["{part1}"]
   group: "bipartite"
   notes: >

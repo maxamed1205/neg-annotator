@@ -1,15 +1,10 @@
-Les patients n’ont pas signalé de douleur, aucune fièvre n'a été observée, et il n'y a pas de signes cliniques; sans preuve d'infection.
-Aucune anomalie n’a été trouvée, le bilan ne montre plus d'élévation enzymatique, et on n'a noté aucune rechute ni complication.
-Il n’existe pas de preuve scientifique soutenant l'hypothèse, le patient n'a jamais présenté de symptôme, et on n'observe aucun marqueur biologique significatif.
-Ni toux ni dyspnée n'ont été rapportées, l'examen n'est pas concluant et il n'y a aucune lésion visible à l'imagerie, sans signes radiologiques évidents.
-Le traitement n’a pas montré d’effet, on ne trouve aucune amélioration, et il n’y a pas de corrélation avec les facteurs de risque; absence de réponse clinique.
-Les patients n’ont pas présenté de complication postopératoire.
-L’examen clinique était sans particularité notable.
-Aucun signe de récidive n’a été détecté à l’IRM.
-Il n’existe pas de preuve scientifique soutenant cette hypothèse.
-Le rapport mentionne l’absence de fièvre au cours de l’hospitalisation.
-Les résultats ne montrent aucune amélioration significative.
-Ni douleur thoracique ni dyspnée n’ont été rapportées par le patient.
-Cette méthode n’est pas considérée comme une alternative fiable.
-Hormis une légère fatigue, aucun autre effet indésirable n’a été observé.
-Un traitement non invasif a été privilégié dans cette étude.
+Test sanguin complet négatif pour toutes les infections.
+La recherche d’infection urinaire est négative.
+Culture bactérienne négative après 48 heures d’incubation.
+Bilan hépatique négatif.
+Radiographie pulmonaire négative pour toute lésion.
+Prélèvement urinaire négatif pour Escherichia coli.
+IRM cérébrale fonctionnelle négative.
+Pression artérielle négative pour hypotension.
+Troponine négative, absence d’atteinte cardiaque.
+Sérologie négative pour anticorps spécifiques.

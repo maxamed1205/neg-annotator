@@ -129,31 +129,31 @@
 # ——————————————————————————————————————————————————————————————
 # E) Déterminant renforcé : "pas le moindre / pas la moindre / pas le plus petit…"
 # ——————————————————————————————————————————————————————————————
-- id: DET_NEG_PAS_REINFORCED
-  when_pattern: >
-    \b(?P<pas>pas)\s+l[ea]\s+(?P<adj>moindre|plus\s+petit|plus\s+l[eé]ger|plus\s+faible|plus\s+infime)\b
-  cue_label: ["{pas}", "{adj}"]
-  group: "determinant"
-  notes: >
-    Tours renforcés équivalents à "aucun".
-    Exemples : "pas le moindre", "pas la moindre", "pas le plus petit",
-    "pas la plus légère", "pas le plus faible", "pas la plus infime".
-    Chaque occurrence est captée dynamiquement via {pas} et {adj}.
-    Si plusieurs renforçateurs apparaissent dans la même phrase,
-    ils sont tous détectés (global = true).
-  options:
-    regex: true
-    case_insensitive: true
-    global: true
-    exclude_verbs_from_cue: true
-  examples:
-    - "Pas le moindre signe d’infection. → pas, moindre"
-    - "Pas la moindre anomalie observée. → pas, moindre"
-    - "Pas le plus petit détail manquant. → pas, plus petit"
-    - "Pas la plus légère anomalie. → pas, plus légère"
-    - "Pas le plus faible espoir de succès. → pas, plus faible"
-    - "Pas la plus infime chance. → pas, plus infime"
-    - "Pas le moindre symptôme ni la plus légère anomalie. → pas, moindre, pas, plus légère"
+# - id: DET_NEG_PAS_REINFORCED
+#   when_pattern: >
+#     \b(?P<pas>pas)\s+l[ea]\s+(?P<adj>moindre|plus\s+petit|plus\s+l[eé]ger|plus\s+faible|plus\s+infime)\b
+#   cue_label: ["{pas}", "{adj}"]
+#   group: "determinant"
+#   notes: >
+#     Tours renforcés équivalents à "aucun".
+#     Exemples : "pas le moindre", "pas la moindre", "pas le plus petit",
+#     "pas la plus légère", "pas le plus faible", "pas la plus infime".
+#     Chaque occurrence est captée dynamiquement via {pas} et {adj}.
+#     Si plusieurs renforçateurs apparaissent dans la même phrase,
+#     ils sont tous détectés (global = true).
+#   options:
+#     regex: true
+#     case_insensitive: true
+#     global: true
+#     exclude_verbs_from_cue: true
+#   examples:
+#     - "Pas le moindre signe d’infection. → pas, moindre"
+#     - "Pas la moindre anomalie observée. → pas, moindre"
+#     - "Pas le plus petit détail manquant. → pas, plus petit"
+#     - "Pas la plus légère anomalie. → pas, plus légère"
+#     - "Pas le plus faible espoir de succès. → pas, plus faible"
+#     - "Pas la plus infime chance. → pas, plus infime"
+#     - "Pas le moindre symptôme ni la plus légère anomalie. → pas, moindre, pas, plus légère"
 
 
 # ——————————————————————————————————————————————————————————————

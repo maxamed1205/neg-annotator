@@ -40,7 +40,7 @@
 
 # A) 'plus' n'est négatif que si 'ne' est dans la même proposition
 - id: BIP_PLUS_ONLY_WITH_NE
-  when_pattern: '\bplus\b'
+  when_pattern: '\bne\b(?:\s+\w+){0,10}?\s+\bplus\b'
   group: "bipartite"
   cue_label: ["{match}"]
   notes: >

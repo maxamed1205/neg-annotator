@@ -26,6 +26,30 @@
     - "Un traitement non efficace, non toléré et non recommandé. → non, non, non"
 
 # ——————————————————————————————————————————————————————————————
+# A2) Adverbes négatifs explicites (ex. : nullement, aucunement…)
+# ——————————————————————————————————————————————————————————————
+- id: LEXICAL_ADVERBES_NEGATIFS
+  when_pattern: '\b(?P<adv>nullement|aucunement|guère|point)\b'
+  cue_label: ["{adv}"]
+  group: "lexical"
+  notes: >
+    Adverbes exprimant directement la négation, utilisés isolément en français :
+      - **Intensité nulle / inexistence** : nullement, aucunement
+      - **Restriction / rareté** : guère
+      - **Refus / absence** : point
+    Ces formes apparaissent souvent dans des contextes formels ou administratifs.
+  options:
+    regex: true
+    case_insensitive: true
+    global: true
+    exclude_verbs_from_cue: true
+  examples:
+    - "Les analyses n'ont nullement confirmé la suspicion. → nullement"
+    - "Cette donnée n'est aucunement probante. → aucunement"
+    - "On ne s'est guère intéressé à ce paramètre. → guère"
+    - "Il n'est point envisageable de revenir en arrière. → point"
+
+# ——————————————————————————————————————————————————————————————
 # B) Formes composées avec trait d’union : "non-résécable"
 # ——————————————————————————————————————————————————————————————
 - id: LEXICAL_NON_COMPOSE
@@ -90,29 +114,44 @@
 # E) Adjectifs lexicaux exprimant une absence / impossibilité / inefficacité
 # ——————————————————————————————————————————————————————————————
 - id: LEXICAL_ADJECTIFS_NEGATIFS
-  when_pattern: >
+  when_pattern: |
     \b(?P<adj>
       absent(?:e|es|s)?|
-      inconnu(?:e|es|s)?|
-      impossible(?:s)?|
-      inefficace(?:s)?|
-      inopérant(?:e|es|s)?|
-      nul(?:le|les|s)?|
-      manquant(?:e|es|s)?|
       déficient(?:e|es|s)?|
-      inadapté(?:e|es|s)?|
-      insuffisant(?:e|es|s)?|
-      indéterminé(?:e|es|s)?|
-      incertain(?:e|es|s)?|
-      inexpliqué(?:e|es|s)?|
-      invisible(?:s)?|
-      imperceptible(?:s)?|
       illisible(?:s)?|
-      introuvable(?:s)?|
-      irrégulier(?:e|es|s)?|
+      imperceptible(?:s)?|
+      impossible(?:s)?|
+      impraticable(?:s)?|
+      improductif(?:ve|fs|ves)?|
+      inadapté(?:e|es|s)?|
+      inadmissible(?:s)?|
+      inapte(?:e|es|s)?|
+      inaudible(?:s)?|
+      incapable(?:s)?|
+      incertain(?:e|es|s)?|
+      incomplet(?:e|es|s)?|
+      incompréhensible(?:s)?|
       incompatible(?:s)?|
+      inconnu(?:e|es|s)?|
+      indéterminé(?:e|es|s)?|
+      inefficace(?:s)?|
+      inexpliqué(?:e|es|s)?|
+      inexact(?:e|es|s)?|
+      infaisable(?:s)?|
+      inintelligible(?:s)?|
+      inopérant(?:e|es|s)?|
+      insatisfaisant(?:e|es|s)?|
+      insuffisant(?:e|es|s)?|
+      intangible(?:s)?|
+      introuvable(?:s)?|
+      inutilisable(?:s)?|
+      inutile(?:s)?|
+      invivable(?:s)?|
+      invisible(?:s)?|
+      irrégulier(?:e|es|s)?|
       irréalisable(?:s)?|
-      impraticable(?:s)?
+      manquant(?:e|es|s)?|
+      nul(?:le|les|s)?
     )\b
   cue_label: ["{adj}"]
   group: "lexical"
@@ -263,6 +302,7 @@
     case_insensitive: true
     global: true
     add_feature_flag: "lex_action=NEGATE_DIAG"
+    exclude_verbs_from_cue: true
   examples:
     - "Diagnostic d’abcès infirmé. → infirmé"
     - "Hypothèse de thrombose écartée. → écartée"
@@ -270,3 +310,43 @@
     - "Diagnostic de méningite rejeté. → rejeté"
     - "Suspicion de cancer non retenue. → non retenue"
     - "Résultat annulé. → annulé"
+
+
+
+# ——————————————————————————————————————————————————————————————
+# H) Verbes porteurs de négation implicite
+# ——————————————————————————————————————————————————————————————
+- id: LEXICAL_VERBES_NEGATIFS
+  when_pattern: >
+    \b(?P<verb>
+      abol|
+      annul|
+      bloqu|
+      contest|
+      empêch|
+      exclu|
+      évit|
+      interdi|
+      interromp|
+      invalid|
+      ni|
+      omett|
+      prohib|
+      rejet|
+      refus|
+      suspend
+    )[a-zéèêç]*\b
+  cue_label: ["{verb}"]
+  group: "lexical"
+  notes: >
+    Verbes exprimant directement la négation ou l’impossibilité, sans 'ne … pas'.
+    Exemples : refuser un traitement, interdire l’accès, prohiber l’usage.
+  options:
+    regex: true
+    case_insensitive: true
+    global: true
+    exclude_verbs_from_cue: true
+  examples:
+    - "Le patient refuse de coopérer. → refuse"
+    - "Le protocole interdit l’utilisation de ce médicament. → interdit"
+    - "Le règlement prohibe l’accès non autorisé. → prohibe"
